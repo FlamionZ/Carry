@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --carry-forest: #163a35;
+  --carry-teal: #2aa58f;
+  --carry-amber: #f1b45b;
+  --carry-paper: #f4f2ea;
+  --carry-ink: #14201e;
+  --carry-sage: #81918a;
+  --carry-white: #ffffff;
+  --carry-alert: #c94c4c;
+  --carry-radius-card: 16px;
+  --carry-radius-control: 10px;
+  --carry-font-display: "Manrope", "Avenir Next", system-ui, sans-serif;
+  --carry-font-body: "Inter", system-ui, sans-serif;
+  --carry-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    font-family: var(--carry-font-body);
+    background: var(--carry-paper);
+    color: var(--carry-ink);
+    min-height: 100dvh;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--carry-font-display);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  :focus-visible {
+    outline: 3px solid var(--carry-teal);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-card border border-black/10 bg-white p-4 sm:p-5;
+  }
+  .btn {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-control px-4 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  /* Teal-dark keeps white text at WCAG AA contrast. */
+  .btn-primary {
+    @apply btn bg-teal-dark text-white hover:bg-forest;
+  }
+  .btn-secondary {
+    @apply btn border border-forest/30 bg-white text-forest hover:bg-paper;
+  }
+  .btn-attention {
+    @apply btn bg-amber text-ink hover:brightness-95;
+  }
+  .btn-danger {
+    @apply btn bg-alert text-white hover:brightness-95;
+  }
+  .btn-ghost {
+    @apply btn text-forest hover:bg-forest/5;
+  }
+  .input {
+    @apply min-h-12 w-full rounded-control border border-sage bg-white px-3 text-base text-ink placeholder:text-sage-dark;
+  }
+  .label {
+    @apply mb-1 block text-sm font-semibold text-ink;
+  }
+  .muted {
+    @apply text-sage-dark;
+  }
+  .mono {
+    font-family: var(--carry-font-mono);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

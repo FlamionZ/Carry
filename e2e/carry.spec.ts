@@ -1,0 +1,122 @@
+import { expect, test } from "@playwright/test";
+import {
+  createCommunity,
+  enroll,
+  openCommunity,
+  pasteScan as scan,
+  pasteTransfer,
+  phone,
+  readFrames,
+  waitForServiceWorker,
+  watch,
+  writeMessage,
+} from "./helpers";
+
+/**
+ * DEMO_PLAN.md scenes 1–5 with three isolated browser contexts ("phones").
+ * Frames move through the scanner's paste fallback; the frame text is exactly
+ * the QR content. The camera path is covered in camera.spec.ts.
+ */
+test("three phones: join, relay, acknowledgement, integrity checks, offline shell", async ({ browser }) => {
+  // ~60 UI steps on three pages; WebKit on Windows needs well over the default when engines run in parallel.
+  test.slow();
+  const w = watch();
+  const A = await phone(browser, "Alex", w);
+  const B = await phone(browser, "Sam", w);
+  const C = await phone(browser, "Chris", w);
+
+  // Scene 2: private community and two approved members.
+  await createCommunity(A.page, "Campus Volunteers");
+  await enroll(A.page, B.page, "Sam", pasteTransfer);
+  await enroll(A.page, C.page, "Chris", pasteTransfer);
+
+  // Scene 3: A → B → C.
+  const text = "Meet at the north entrance. Bring the first-aid kit.";
+  const message = await writeMessage(A.page, text);
+
+  await scan(B.page, message);
+  await expect(B.page.getByText(text)).toBeVisible();
+  await expect(B.page.getByText("Received on this device", { exact: true })).toBeVisible();
+  await B.page.getByRole("button", { name: "Relay this packet" }).click();
+  await expect(B.page.getByText("Relay copy: same packet, one more hop.")).toBeVisible();
+  const relayed = await readFrames(B.page);
+
+  await scan(C.page, relayed);
+  await expect(C.page.getByText(text)).toBeVisible();
+  await expect(C.page.getByText("1 of 6")).toBeVisible();
+
+  // Scene 5a: the same packet again is a duplicate.
+  await scan(C.page, relayed);
+  await expect(C.page.getByText("Already on this device")).toBeVisible();
+
+  // Scene 4: C acknowledges; B carries the ACK back to A.
+  await C.page.getByRole("link", { name: "Open it" }).click();
+  await C.page.getByRole("button", { name: "Acknowledge" }).click();
+  await expect(C.page.getByRole("heading", { name: "Acknowledgement", exact: true })).toBeVisible();
+  const ack = await readFrames(C.page);
+
+  await scan(B.page, ack);
+  await expect(B.page.getByText("Chris acknowledged Alex's message")).toBeVisible();
+  // B leaves and later finds the ACK in the relay queue.
+  await openCommunity(B.page);
+  await B.page.getByRole("tab", { name: /Relay/ }).click();
+  await B.page.getByRole("link", { name: /Chris acknowledged Alex's message/ }).click();
+  await B.page.getByRole("button", { name: "Relay this packet" }).click();
+  const ackRelayed = await readFrames(B.page);
+
+  // Not acknowledged until the ACK is scanned on A.
+  await openCommunity(A.page);
+  await expect(A.page.getByText("Ready to pass along", { exact: true })).toBeVisible();
+  await scan(A.page, ackRelayed);
+  await expect(A.page.getByRole("heading", { name: "Message", exact: true })).toBeVisible();
+  await expect(A.page.getByText("Acknowledged", { exact: true })).toBeVisible();
+  await expect(A.page.getByText("Chris", { exact: true })).toBeVisible();
+
+  // Scene 5b/c: corrupted frame and expired packet fixtures are rejected.
+  await A.page.goto("/settings");
+  await A.page.getByRole("button", { name: "Corrupted frame" }).click();
+  const corrupted = await readFrames(A.page);
+  await scan(B.page, corrupted);
+  await expect(B.page.getByText("The scanned frames do not match their checksum.", { exact: false })).toBeVisible();
+
+  await A.page.getByRole("button", { name: "Hide test QR" }).click();
+  await A.page.getByRole("button", { name: "Expired packet" }).click();
+  const expired = await readFrames(A.page);
+  await scan(B.page, expired);
+  await expect(B.page.getByText("This packet has expired", { exact: false })).toBeVisible();
+
+  // An interrupted transfer is listed until finished or discarded.
+  await B.page.goto("/scan");
+  await B.page.getByText("Fallbacks: image upload or frame text").click();
+  await B.page.getByRole("button", { name: "Paste frame text" }).click();
+  await B.page.getByLabel(/Frame text \(one or more/).fill(message[0]!);
+  await B.page.getByRole("button", { name: "Import frame text" }).click();
+  await expect(B.page.getByText(`1 of ${message.length} QR frames scanned.`)).toBeVisible();
+  await B.page.goto("/scan");
+  const unfinished = B.page.getByRole("region", { name: "Unfinished transfers" });
+  await expect(unfinished.getByText(`1 of ${message.length} frames`)).toBeVisible();
+  await unfinished.getByRole("button", { name: "Discard" }).click();
+  await expect(unfinished).toHaveCount(0);
+
+  // Rehearsal measurements on B count the rejections.
+  await B.page.goto("/settings");
+  await expect(B.page.getByText("TRANSFER_DIGEST_MISMATCH: 1")).toBeVisible();
+  await expect(B.page.getByText("PACKET_EXPIRED: 1")).toBeVisible();
+
+  // Scene 1: with the network off, the cached app shell and local data still load.
+  await A.page.goto("/settings");
+  if (await waitForServiceWorker(A.page)) {
+    await expect(A.page.getByText("Files this page uses are cached", { exact: false })).toBeVisible();
+    await A.setOffline(true);
+    await A.page.reload();
+    await expect(A.page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    await A.page.goto("/");
+    await expect(A.page.getByRole("link", { name: /Campus Volunteers/ })).toBeVisible();
+    await expect(A.page.getByText("Offline-ready", { exact: true })).toBeVisible();
+  } else {
+    test.info().annotations.push({ type: "offline", description: "No service worker in this browser build; offline step skipped." });
+  }
+
+  expect(w.external, "no request may leave the app origin").toEqual([]);
+  expect(w.problems, "no console errors, page errors or CSP violations").toEqual([]);
+});
