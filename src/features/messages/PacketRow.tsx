@@ -57,7 +57,7 @@ export function PacketRow({ record }: { record: PacketRecord }) {
       </div>
       {/* Rendered as text only, never as HTML. */}
       <p className="line-clamp-2 whitespace-pre-wrap break-words">
-        {error ? <span className="text-alert">{describeError(error).message}</span> : summary}
+        {error ? <span className="text-alert-dark">{describeError(error).message}</span> : summary}
       </p>
       <StatusBadge status={view?.status ?? effectiveStatus(record.status, record.expiresAt, device.now())} />
     </Link>

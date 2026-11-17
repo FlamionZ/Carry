@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import { createIdentity } from "../../application/use-cases/identity";
 import { useDevice } from "../../app/providers/DeviceProvider";
 import { formatRemaining, useAction } from "../../app/useAction";
+import { IosStorageNotice } from "../../components/IosStorageNotice";
 import { CarryMark } from "../../components/Logo";
 import { ErrorNotice } from "../../components/Notice";
 import { LIMITS } from "../../domain/limits";
@@ -24,6 +25,7 @@ function IdentitySetup() {
           a group, invite members with QR, and pass encrypted message packets from one device to another.
         </p>
       </section>
+      <IosStorageNotice />
       <form
         className="card space-y-3"
         onSubmit={(e) => {
@@ -87,6 +89,8 @@ export function HomePage() {
         <p className="muted">Hello, {identity.displayName}</p>
         <h1 className="text-2xl text-forest">Your communities</h1>
       </div>
+
+      <IosStorageNotice />
 
       <div className="grid grid-cols-2 gap-3">
         <Link to="/communities/new" className="btn-primary">

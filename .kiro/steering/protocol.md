@@ -15,3 +15,4 @@ fileMatchPattern: "src/**/*.ts"
 - Private keys are non-extractable CryptoKeys. Group key bytes are stored only after wrapping with the device vault key.
 - QR transfers keep chunks only while partial. Handled transfers are deleted because chunks can contain invite secrets.
 - Throw `CarryError` with a code from `src/domain/errors.ts`.
+- `src/test/vectors/carry-v1.json` pins the v1 wire format (checked by `src/application/vectors.test.ts`). Never edit or regenerate it. A failing vector means the change breaks phones running older builds: fix the code, not the vectors.

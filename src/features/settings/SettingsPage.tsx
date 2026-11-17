@@ -354,7 +354,17 @@ export function SettingsPage() {
         </ul>
       </section>
       <DangerSection />
-      <p className="text-center text-xs muted">CARRY · protocol CARRY/1 · build {__APP_VERSION__}</p>
+      <div className="space-y-1 text-center text-xs muted">
+        <p>
+          CARRY · protocol CARRY/1 · build <span className="mono">{__APP_VERSION__}</span>
+        </p>
+        <p>
+          {/* New tab: an installed iOS app has no back button. */}
+          <a className="underline" href="/licenses.txt" target="_blank" rel="noopener noreferrer">
+            Open-source licenses
+          </a>
+        </p>
+      </div>
     </div>
   );
 }

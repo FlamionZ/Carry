@@ -9,7 +9,9 @@ Stack: Vite 8, React 18, TypeScript (strict), React Router 7 in declarative mode
 ## Commands
 
 - `npm run build` (tsc -b, then vite build), `npm test` (Vitest, single run), `npm run test:e2e` (Playwright against `dist/` in Chromium, WebKit and Firefox; build first).
+- `npm run vectors` writes the golden vectors and refuses to overwrite them. Only for a new protocol version.
 - Do not start dev servers or watch mode from the agent; ask the user to run `npm run dev`.
+- Security and cache headers live in `vite.config.ts` (`SECURITY_HEADERS`, `CACHE_RULES`). They are emitted as `dist/_headers` and applied by `vite preview`, so the browser tests run with them. Change them there, nowhere else.
 
 ## Layers
 

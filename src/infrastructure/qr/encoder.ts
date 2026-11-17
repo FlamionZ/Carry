@@ -1,5 +1,8 @@
-import { BrowserQRCodeReader } from "@zxing/browser";
-import QRCode, { type QRCodeMaskPattern } from "qrcode";
+import type { BrowserQRCodeReader } from "@zxing/browser";
+import type * as QRCodeModule from "qrcode";
+import type { QRCodeMaskPattern } from "qrcode";
+
+type QRCodeApi = typeof QRCodeModule;
 
 const OPTIONS = {
   errorCorrectionLevel: "M",
@@ -9,15 +12,20 @@ const OPTIONS = {
 
 const MASKS: QRCodeMaskPattern[] = [0, 1, 2, 3, 4, 5, 6, 7];
 
-let reader: BrowserQRCodeReader | undefined;
+let libs: Promise<{ QRCode: QRCodeApi; reader: BrowserQRCodeReader }> | undefined;
 
-function readsBack(canvas: HTMLCanvasElement, text: string): boolean {
-  reader ??= new BrowserQRCodeReader();
-  try {
-    return reader.decodeFromCanvas(canvas).getText() === text;
-  } catch {
-    return false;
-  }
+/** The QR libraries load on first use, so screens without QR codes start faster. */
+function loadLibs() {
+  libs ??= Promise.all([import("qrcode"), import("@zxing/browser")]).then(([qr, zxing]) => ({
+    // qrcode is CommonJS; depending on the bundler it arrives as the namespace or as its default export.
+    QRCode: ((qr as { default?: QRCodeApi }).default ?? qr) as QRCodeApi,
+    reader: new zxing.BrowserQRCodeReader(),
+  }));
+  // Let a later call retry if loading failed (e.g. the app was not fully cached yet).
+  libs.catch(() => {
+    libs = undefined;
+  });
+  return libs;
 }
 
 /**
@@ -31,13 +39,22 @@ function readsBack(canvas: HTMLCanvasElement, text: string): boolean {
  * the image-upload fallback; a live camera adds enough variation by itself.
  */
 export async function renderQr(text: string, size = 360): Promise<string> {
+  const { QRCode, reader } = await loadLibs();
+  const readsBack = (canvas: HTMLCanvasElement) => {
+    try {
+      return reader.decodeFromCanvas(canvas).getText() === text;
+    } catch {
+      return false;
+    }
+  };
+
   const canvas = document.createElement("canvas");
   await QRCode.toCanvas(canvas, text, { ...OPTIONS, width: size });
-  if (readsBack(canvas, text)) return canvas.toDataURL("image/png");
+  if (readsBack(canvas)) return canvas.toDataURL("image/png");
 
   for (const maskPattern of MASKS) {
     await QRCode.toCanvas(canvas, text, { ...OPTIONS, width: size, maskPattern });
-    if (readsBack(canvas, text)) return canvas.toDataURL("image/png");
+    if (readsBack(canvas)) return canvas.toDataURL("image/png");
   }
   // Not observed in testing. The default rendering is still a valid QR code for other scanners.
   await QRCode.toCanvas(canvas, text, { ...OPTIONS, width: size });

@@ -106,4 +106,7 @@ writeFileSync("public/icons/icon-192.png", render(192, { scale: 1, rounded: true
 writeFileSync("public/icons/icon-512.png", render(512, { scale: 1, rounded: true }));
 // Maskable: full-bleed background, mark inside the 80% safe zone.
 writeFileSync("public/icons/icon-maskable-512.png", render(512, { scale: 0.72, rounded: false }));
-console.log("Wrote public/icons/icon-192.png, icon-512.png, icon-maskable-512.png");
+// iOS fills transparent pixels with black and applies its own corner mask, so
+// the Home Screen icon is full-bleed and opaque.
+writeFileSync("public/icons/apple-touch-icon.png", render(180, { scale: 0.85, rounded: false }));
+console.log("Wrote public/icons/icon-192.png, icon-512.png, icon-maskable-512.png, apple-touch-icon.png");

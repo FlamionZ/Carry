@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "CARRY — offline-first private community messages carried by QR handoffs.",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -11,6 +14,7 @@
     "typecheck": "tsc -b",
     "test": "vitest --run",
     "test:e2e": "playwright test",
+    "vectors": "vitest run --config vitest.vectors.config.ts",
     "dev:https": "vite --mode https",
     "preview:https": "vite build && vite preview --mode https",
     "icons": "node scripts/generate-icons.mjs"

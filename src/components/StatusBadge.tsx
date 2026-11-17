@@ -9,7 +9,7 @@ const STYLES: Record<PacketStatus, { label: string; className: string; Icon: typ
   // Teal/green is reserved for a returned ACK.
   ACKNOWLEDGED: { label: "Acknowledged", className: "bg-teal/15 text-teal-dark", Icon: CheckCheck },
   EXPIRED: { label: "Expired", className: "bg-sage/20 text-sage-dark", Icon: Clock },
-  REJECTED: { label: "Rejected", className: "bg-alert/15 text-alert", Icon: ShieldAlert },
+  REJECTED: { label: "Rejected", className: "bg-alert/15 text-alert-dark", Icon: ShieldAlert },
 };
 
 export function StatusBadge({ status }: { status: PacketStatus }) {

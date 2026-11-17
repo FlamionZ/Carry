@@ -4,14 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#163A35" />
+    <meta name="color-scheme" content="light" />
     <meta name="description" content="An offline-first community messenger powered by QR handoffs." />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/icons/carry-mark.svg" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
     <title>CARRY</title>
   </head>
   <body class="bg-paper text-ink">
     <div id="root"></div>
+    <noscript>
+      <p class="p-6">CARRY needs JavaScript to run. Turn on JavaScript for this site and reload.</p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

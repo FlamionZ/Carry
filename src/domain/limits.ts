@@ -22,4 +22,6 @@ export const DURATIONS = {
   transferRetention: 24 * 3_600_000,
   tombstoneWindow: 30 * 86_400_000,
   inviteRetention: 30 * 86_400_000,
+  /** Local audit events (rehearsal measurements); otherwise they grow with every scan. */
+  auditRetention: 90 * 86_400_000,
 } as const;

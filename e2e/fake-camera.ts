@@ -29,6 +29,8 @@ export function installFakeCamera(): void {
   let index = 0;
   let switchedAt = 0;
   const tracks: MediaStreamTrack[] = [];
+  let drawing = false;
+  let lastDraw = 0;
 
   const draw = (t: number) => {
     if (images.length > 1 && t - switchedAt > 600) {
@@ -48,9 +50,26 @@ export function installFakeCamera(): void {
       ctx.drawImage(img, -size / 2, -size / 2, size, size);
       ctx.restore();
     }
-    requestAnimationFrame(draw);
   };
-  requestAnimationFrame(draw);
+
+  // Draw only while a camera track is live, at the 15 fps the stream captures.
+  // Drawing every animation frame in every page starved parallel tests.
+  const startDrawing = () => {
+    if (drawing) return;
+    drawing = true;
+    const loop = (t: number) => {
+      if (!tracks.some((track) => track.readyState === "live")) {
+        drawing = false;
+        return;
+      }
+      if (t - lastDraw >= 66) {
+        lastDraw = t;
+        draw(t);
+      }
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  };
 
   window.__carryFakeCamera = {
     show(urls) {
@@ -76,6 +95,8 @@ export function installFakeCamera(): void {
         }
         tracks.push(track);
       }
+      draw(performance.now()); // a first frame before the stream starts
+      startDrawing();
       return stream;
     },
     async enumerateDevices() {

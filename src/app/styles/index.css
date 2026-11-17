@@ -11,6 +11,8 @@
   --carry-sage: #81918a;
   --carry-white: #ffffff;
   --carry-alert: #c94c4c;
+  /* Focus ring: ≥ 3:1 against white and paper. Brand teal is only 2.7:1 on paper. */
+  --carry-focus: #1a7060;
   --carry-radius-card: 16px;
   --carry-radius-control: 10px;
   --carry-font-display: "Manrope", "Avenir Next", system-ui, sans-serif;
@@ -37,8 +39,13 @@
     letter-spacing: -0.01em;
   }
   :focus-visible {
-    outline: 3px solid var(--carry-teal);
+    outline: 3px solid var(--carry-focus);
     outline-offset: 2px;
+  }
+  /* On the dark header and camera panel the ring switches to paper. */
+  .bg-forest :focus-visible,
+  .bg-ink :focus-visible {
+    outline-color: var(--carry-paper);
   }
 }
 

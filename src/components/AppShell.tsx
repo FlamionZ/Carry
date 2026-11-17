@@ -1,7 +1,8 @@
 import { Home, ScanLine, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet } from "react-router";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { applyServiceWorkerUpdate, subscribeServiceWorker } from "../infrastructure/pwa/register";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { Wordmark } from "./Logo";
 import { OfflineBadge } from "./OfflineBadge";
 
@@ -13,6 +14,7 @@ const NAV = [
 
 export function AppShell() {
   const [needRefresh, setNeedRefresh] = useState(false);
+  const { pathname } = useLocation();
   useEffect(() => subscribeServiceWorker((s) => setNeedRefresh(s.needRefresh)), []);
 
   return (
@@ -33,17 +35,30 @@ export function AppShell() {
         </div>
       )}
 
+      {/* Floats above the navigation so it never shifts the page under a finger. */}
       {needRefresh && (
-        <div className="bg-amber px-4 py-2 text-center text-sm text-ink">
-          A new version of CARRY is cached.{" "}
-          <button type="button" className="font-semibold underline" onClick={applyServiceWorkerUpdate}>
-            Reload to update
-          </button>
+        <div
+          className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 px-4 pb-2"
+          role="status"
+        >
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-control bg-amber px-4 py-2 text-sm text-ink shadow-md">
+            <span>A new version of CARRY is cached.</span>
+            <button
+              type="button"
+              className="min-h-11 shrink-0 font-semibold underline"
+              onClick={applyServiceWorkerUpdate}
+            >
+              Reload to update
+            </button>
+          </div>
         </div>
       )}
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 pb-28 pt-5">
-        <Outlet />
+        {/* Keyed on the path: navigating away from a failed screen shows the new screen normally. */}
+        <ErrorBoundary resetKey={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       <nav

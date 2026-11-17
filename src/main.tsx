@@ -12,16 +12,20 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import { DeviceProvider } from "./app/providers/DeviceProvider";
 import { AppRoutes } from "./app/routes/AppRoutes";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { registerServiceWorker } from "./infrastructure/pwa/register";
 
 registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <DeviceProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </DeviceProvider>
+    {/* Last resort for errors outside a screen; screens have their own boundary in AppShell. */}
+    <ErrorBoundary>
+      <DeviceProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </DeviceProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

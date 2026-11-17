@@ -46,7 +46,7 @@ export function ComposePage() {
           placeholder="Meet at the north entrance. Bring the first-aid kit."
           aria-describedby="message-help"
         />
-        <p id="message-help" className={`text-sm ${remaining < 0 ? "text-alert" : "muted"}`}>
+        <p id="message-help" className={`text-sm ${remaining < 0 ? "text-alert-dark" : "muted"}`}>
           {remaining >= 0 ? `${remaining} characters left.` : `${-remaining} characters over the limit.`} Short
           messages need fewer QR frames. Messages expire after 24 hours.
         </p>

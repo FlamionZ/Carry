@@ -1,10 +1,8 @@
 import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { prefersReducedMotion } from "../app/motion";
+import { useScreenWakeLock } from "../app/useScreenWakeLock";
 import { renderQr } from "../infrastructure/qr/encoder";
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-}
 
 /**
  * Large QR surface for multi-frame transfers. Frames cycle automatically so
@@ -14,22 +12,30 @@ export function QrFrameDisplay({ frames, label }: { frames: string[]; label?: st
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(() => frames.length > 1 && !prefersReducedMotion());
   const [images, setImages] = useState<string[]>([]);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   const key = useMemo(() => frames.join("\n"), [frames]);
+  useScreenWakeLock(true);
 
   useEffect(() => {
     let cancelled = false;
     setIndex(0);
+    setImages([]);
+    setFailed(false);
     Promise.all(frames.map((f) => renderQr(f, 720)))
-      .then((urls) => !cancelled && setImages(urls))
+      .then((urls) => {
+        if (!cancelled) setImages(urls);
+      })
       .catch(() => {
-        // Frames are bounded (≤ 480 chars), so rendering only fails if the page is being torn down.
+        // Frames are bounded (≤ 480 chars), so this means the QR code could not be loaded.
+        if (!cancelled) setFailed(true);
       });
     return () => {
       cancelled = true;
     };
     // Keyed on the joined frame text so a new array with the same frames does not re-render QR images.
-  }, [key]);
+  }, [key, attempt]);
 
   useEffect(() => {
     if (!playing || frames.length < 2) return;
@@ -53,6 +59,16 @@ export function QrFrameDisplay({ frames, label }: { frames: string[]; label?: st
             alt={`QR frame ${index + 1} of ${total}`}
             className="h-full w-full [image-rendering:pixelated]"
           />
+        ) : failed ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center" role="alert">
+            <p className="text-sm">
+              The QR code could not be prepared. Open CARRY while online until it shows Offline-ready, then try
+              again.
+            </p>
+            <button type="button" className="btn-secondary" onClick={() => setAttempt((a) => a + 1)}>
+              Try again
+            </button>
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center muted">Preparing QR…</div>
         )}

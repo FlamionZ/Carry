@@ -8,6 +8,7 @@ import {
   preparePacketForQr,
   readPacket,
 } from "../../application/use-cases/packets";
+import { scrollBehavior } from "../../app/motion";
 import { useDevice } from "../../app/providers/DeviceProvider";
 import { formatRemaining, formatTime, useAction } from "../../app/useAction";
 import { PageHeader } from "../../components/AppShell";
@@ -54,7 +55,7 @@ function PacketPage({ recordId }: { recordId: string }) {
   const qrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (frames) qrRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    if (frames) qrRef.current?.scrollIntoView({ block: "start", behavior: scrollBehavior() });
   }, [frames]);
 
   useEffect(() => {

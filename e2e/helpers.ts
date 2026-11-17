@@ -55,12 +55,39 @@ export async function phone(browser: Browser, name: string, w: Watch, init?: () 
   return { page, setOffline: (offline) => context.setOffline(offline) };
 }
 
+/**
+ * Resolve once the page has not scrolled for six animation frames. The app
+ * smooth-scrolls to a newly shown QR display; a tap during that scroll can land
+ * on another element (seen in Firefox).
+ */
+export async function settleScroll(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let last = window.scrollY;
+        let still = 0;
+        const tick = () => {
+          if (window.scrollY === last) still += 1;
+          else [still, last] = [0, window.scrollY];
+          if (still >= 6) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+}
+
 /** Read every frame shown by the QR display (diagnostics text = QR content). */
 export async function readFrames(page: Page): Promise<string[]> {
   const details = page.locator("details", { hasText: "Frame text (diagnostics)" }).first();
-  if (!(await details.evaluate((d) => (d as HTMLDetailsElement).open))) await details.locator("summary").click();
   const areas = details.locator("textarea");
-  await expect(areas.first()).toBeVisible();
+  await details.waitFor();
+  await settleScroll(page);
+  // Tap again if a tap still missed, until the disclosure is open.
+  await expect(async () => {
+    if (!(await details.evaluate((d) => (d as HTMLDetailsElement).open))) await details.locator("summary").click();
+    await expect(areas.first()).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
   return areas.evaluateAll((els) => els.map((e) => (e as HTMLTextAreaElement).value));
 }
 
@@ -113,6 +140,7 @@ export async function enroll(admin: Page, member: Page, memberName: string, tran
 export async function readFrameImages(page: Page): Promise<string[]> {
   const img = page.getByRole("img", { name: /^QR frame \d+ of \d+$/ });
   await expect(img).toBeVisible();
+  await settleScroll(page);
   const total = Number(/of (\d+)$/.exec((await img.getAttribute("alt"))!)![1]);
   const pause = page.getByRole("button", { name: "Pause" });
   if (await pause.isVisible()) await pause.click();

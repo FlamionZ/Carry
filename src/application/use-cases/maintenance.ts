@@ -11,10 +11,13 @@ export async function runCleanup(device: Device): Promise<void> {
 
   await db.transaction(
     "rw",
-    [db.transfers, db.invites, db.pendingJoinRequests, db.joinRequests, db.packets],
+    [db.transfers, db.invites, db.pendingJoinRequests, db.joinRequests, db.packets, db.auditEvents],
     async () => {
       // Transfers: drop chunks 24 h after the last update.
       await db.transfers.where("updatedAt").below(now - DURATIONS.transferRetention).delete();
+
+      // Audit events: keep 90 days.
+      await db.auditEvents.where("timestamp").below(now - DURATIONS.auditRetention).delete();
 
       // Invites: expire and delete per-invite ECDH private keys; drop hashes after 30 days.
       const invites = await db.invites.toArray();
