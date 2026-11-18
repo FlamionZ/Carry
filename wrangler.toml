@@ -1,0 +1,5 @@
+# Cloudflare Pages project for CARRY (static site; no Functions, no bindings).
+# Deploy with `npm run deploy`. Headers come from dist/_headers (vite.config.ts).
+name = "carry"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-11-18"

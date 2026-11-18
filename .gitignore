@@ -7,3 +7,4 @@ playwright-report
 *.tsbuildinfo
 *.local
 .DS_Store
+.wrangler
