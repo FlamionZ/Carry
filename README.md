@@ -22,6 +22,10 @@ The first browser-test run needs the browsers: `npx playwright install chromium 
 
 ## Deploying to production
 
+Live: **https://carry-beu.pages.dev** (Cloudflare Pages project `carry`, direct upload).
+
+To deploy, run `npm run deploy`. It builds, runs the unit tests, and uploads `dist/` with Wrangler. The first time on a machine, run `npx wrangler login`. Pushing to GitHub does not deploy. Commit before deploying, so Settings shows a build number without `.dirty`.
+
 `dist/` is a static site. It needs HTTPS, an SPA fallback to `index.html`, and the response headers in `dist/_headers`.
 
 | Host | Steps |
