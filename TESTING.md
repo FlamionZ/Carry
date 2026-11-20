@@ -82,7 +82,7 @@ Optional: write an Announcement and a Request the same way. Each row in the Mess
 1. Carry the message QR from A to B.
    **Expected on B:** the message text, the label "Change", the status "Received", and a "Relay journey" section reading "Alex → you".
 2. On B, tap **Relay this packet**.
-   **Expected:** a QR labelled "Relay copy: same packet, one more hop." B's status changes to "Shown for relay".
+   **Expected:** a QR labelled "Relay copy: the same encrypted packet, with your signed relay entry for the next hop." B's status changes to "Shown for relay".
 3. Carry the relay QR from B to C.
    **Expected on C:** the same text, "Change", "Received", "Relay hops 1 of 6", and a "Relay journey" reading "Alex → unknown member → you". The middle hop is marked "Unknown member on this device".
 
@@ -106,7 +106,7 @@ On C, tap **Open it** (or open the message from the Messages tab), then tap **Ac
 2. Carry the acknowledgement QR from C to B.
    **Expected on B:** an "Acknowledgement" page reading "Chris acknowledged Alex's message" followed by the quoted text.
 3. On B, tap **Relay this packet**, and carry the QR from B to A.
-   **Expected on A:** the message page opens with the status "Acknowledged". The "Acknowledgements" section lists Chris, with two journeys:
+   **Expected on A:** the message page opens with the status "Acknowledged". The "Acknowledgements" section reads "1 member acknowledged" and lists Chris, with two journeys:
    - "Message journey to Chris": "Alex → Sam → Chris", with Sam marked "Verified".
    - "Acknowledgement journey back from Chris": "Chris → Sam → Alex", with Sam marked "Verified".
 
@@ -119,6 +119,8 @@ On A, open Campus Volunteers and tap the **Ledger** tab.
 **Expected:** the Change is listed with "Change", "Acknowledged", "1 member acknowledged", "Out: You → Sam → Chris" and "Back: Chris → Sam → you".
 
 Tap the entry. **Expected:** a "Timeline" section with "Created on this device", "Shown: first displayed as QR frames" and "Acknowledged by Chris: their acknowledgement was scanned on this device", followed by both journeys from step 7.
+
+Optional: for a Request, the count reads "confirmed" instead, for example "1 member confirmed", both in the Ledger and on the message page.
 
 ## 9. Integrity tests: corrupted and expired packets (phones A and B)
 
@@ -160,4 +162,4 @@ npm run build                                   # the browser tests run against 
 npm run test:e2e                                # Playwright in Chromium, WebKit and Firefox
 ```
 
-`npm test` runs 101 tests in 6 files. `npm run test:e2e` runs 4 browser tests on each of the three engines. `e2e/carry.spec.ts` follows the same steps as this document with three isolated browser contexts and the paste fallback. `e2e/camera.spec.ts` covers the camera code path with a fake camera, screenshot upload, and denied camera permission. Playwright's WebKit build for Windows cannot run the fake camera, so that one test is skipped there.
+`npm test` runs 102 tests in 6 files. `npm run test:e2e` runs 4 browser tests on each of the three engines. `e2e/carry.spec.ts` follows the same steps as this document with three isolated browser contexts and the paste fallback. `e2e/camera.spec.ts` covers the camera code path with a fake camera, screenshot upload, and denied camera permission. Playwright's WebKit build for Windows cannot run the fake camera, so that one test is skipped there.

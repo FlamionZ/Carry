@@ -28,7 +28,7 @@ You design and implement changes to the CARRY packet protocol: QR frames, packet
 ## How to work
 
 1. Restate the change and list what it touches on the wire: which fields, which canonical strings, which signatures, which error codes.
-2. Decide whether a build that does not know the change can still read the packet. Prefer additive, backward-compatible changes. A change that older builds cannot parse needs a new protocol version and new vectors (`npm run vectors`, which refuses to overwrite existing ones).
+2. Decide whether a build that does not know the change can still read the packet. Prefer additive, backward-compatible changes. A change that older builds cannot parse needs a new protocol version and new vectors (`npm run vectors` and `npm run vectors:relay`, which refuse to overwrite existing ones).
 3. Update `docs/PACKET_PROTOCOL.md` first, then the conformance tests, then the code.
 4. Keep the layers: pure rules in `src/domain` (no React, DOM, IndexedDB or Web Crypto), use cases in `src/application` taking a `Device`, Web Crypto and Dexie in `src/infrastructure`.
 5. Build all AAD and signature inputs only with `src/domain/canonical.ts`. Throw `CarryError` with a code from `src/domain/errors.ts`.

@@ -1,3 +1,4 @@
+import { useLiveQuery } from "dexie-react-hooks";
 import { BookOpen, CheckCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -7,13 +8,8 @@ import { formatTime } from "../../app/useAction";
 import { MessageKindBadge } from "../../components/MessageKindBadge";
 import { ErrorNotice } from "../../components/Notice";
 import { StatusBadge } from "../../components/StatusBadge";
-import type { PacketRecord } from "../../infrastructure/db/db";
+import { acknowledgementCountText } from "../messages/acknowledgementCount";
 import { journeySummary } from "../messages/RelayJourney";
-
-function countText(n: number): string {
-  if (n === 0) return "No acknowledgements yet";
-  return `${n} ${n === 1 ? "member" : "members"} acknowledged`;
-}
 
 function LedgerRow({ item }: { item: LedgerItem }) {
   const expiredUnanswered = item.statusLabel === "Expired" && item.acknowledgementCount === 0;
@@ -31,7 +27,7 @@ function LedgerRow({ item }: { item: LedgerItem }) {
         <p className="line-clamp-2 whitespace-pre-wrap break-words">{item.text}</p>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <StatusBadge label={item.statusLabel} />
-          <span className="font-semibold">{countText(item.acknowledgementCount)}</span>
+          <span className="font-semibold">{acknowledgementCountText(item.messageKind, item.acknowledgementCount)}</span>
         </div>
         {expiredUnanswered && (
           <p className="text-sm">
@@ -65,13 +61,28 @@ function LedgerRow({ item }: { item: LedgerItem }) {
   );
 }
 
-/** This device's own messages in one community. `packets` only signals that stored data changed. */
-export function LedgerTab({ communityId, packets }: { communityId: string; packets: PacketRecord[] | undefined }) {
+/** This device's own messages in one community, re-read whenever their stored data changes. */
+export function LedgerTab({ communityId }: { communityId: string }) {
   const device = useDevice();
+  const { db } = device;
   const [items, setItems] = useState<LedgerItem[] | null>(null);
   const [error, setError] = useState<unknown>(null);
 
+  // Everything the Ledger is built from. The live query holds only Dexie
+  // reads: Dexie does not allow Web Crypto awaits inside it, so verifying and
+  // decrypting (readLedger) runs once per change, below.
+  const stored = useLiveQuery(
+    () =>
+      Promise.all([
+        db.packets.where("communityId").equals(communityId).toArray(),
+        db.acknowledgements.where("communityId").equals(communityId).toArray(),
+        db.memberships.where("communityId").equals(communityId).toArray(),
+      ]),
+    [communityId],
+  );
+
   useEffect(() => {
+    if (!stored) return;
     let cancelled = false;
     readLedger(device, communityId)
       .then((v) => {
@@ -85,7 +96,7 @@ export function LedgerTab({ communityId, packets }: { communityId: string; packe
     return () => {
       cancelled = true;
     };
-  }, [device, communityId, packets]);
+  }, [device, communityId, stored]);
 
   return (
     <section className="space-y-3" role="tabpanel" id="panel-ledger" aria-labelledby="tab-ledger">

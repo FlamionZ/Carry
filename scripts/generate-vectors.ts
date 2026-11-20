@@ -4,8 +4,8 @@
  *
  * The committed vectors must never change for protocol v1: they prove that new
  * builds still read what older builds wrote. The script refuses to overwrite
- * an existing file (the test is skipped). Delete it only when introducing a
- * new protocol version.
+ * an existing file: the run fails with a refusal message. Delete it only when
+ * introducing a new protocol version.
  */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -46,9 +46,9 @@ function withChunk(frame: string, edit: (chunk: string) => string): string {
 /** Encode a deliberately broken payload; canonical JSON does not validate. */
 const encodeRaw = (value: unknown) => encodePayload(value as CarryPayload);
 
-// Skipped, never rerun, when the file exists, so `npm run vectors` can write
-// the relay vectors (scripts/generate-vectors-relay.ts) next to it.
-test.skipIf(existsSync(OUT))("generate CARRY/1 golden vectors", async () => {
+// Fails with the refusal below when the file exists. `npm run vectors` runs
+// only this generator, so the relay file existing does not matter here.
+test("generate CARRY/1 golden vectors", async () => {
   if (existsSync(OUT)) {
     throw new Error(`${OUT} exists. Golden vectors must not change; delete it only for a new protocol version.`);
   }

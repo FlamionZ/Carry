@@ -3,19 +3,31 @@ import { useId } from "react";
 import type { ReturnedAcknowledgement } from "../../application/use-cases/packets";
 import type { RelayHopStatus, RelayJourney, RelayJourneyHop } from "../../application/use-cases/relay";
 import { formatTime } from "../../app/useAction";
+import { Badge, type BadgeIcon } from "../../components/Badge";
+import { DURATIONS } from "../../domain/limits";
 import type { RelayClockFlag } from "../../domain/packet/relay";
 
 // Teal is reserved for Acknowledged, so verified relays use forest.
-const MARKERS: Record<RelayHopStatus, { text: string; className: string; Icon: typeof ShieldCheck }> = {
-  VERIFIED: { text: "Verified", className: "bg-forest/10 text-forest", Icon: ShieldCheck },
-  UNKNOWN_MEMBER: { text: "Unknown member on this device", className: "bg-sage/20 text-sage-dark", Icon: ShieldQuestion },
-  SIGNATURE_FAILED: { text: "Signature does not verify", className: "bg-alert/15 text-alert-dark", Icon: ShieldAlert },
+const MARKERS: Record<RelayHopStatus, { text: string; tone: string; Icon: BadgeIcon }> = {
+  VERIFIED: { text: "Verified", tone: "bg-forest/10 text-forest", Icon: ShieldCheck },
+  UNKNOWN_MEMBER: { text: "Unknown member on this device", tone: "bg-sage/20 text-sage-dark", Icon: ShieldQuestion },
+  SIGNATURE_FAILED: { text: "Signature does not verify", tone: "bg-alert/15 text-alert-dark", Icon: ShieldAlert },
 };
 
-function flagText(flag: RelayClockFlag, writtenWhat: string, scannedWhat: string): string {
+/** The packet a journey belongs to: its creation time is what hop times are compared with. */
+export type JourneySubject = "MESSAGE" | "ACK";
+
+const SUBJECT_WORDS: Record<JourneySubject, string> = { MESSAGE: "the message", ACK: "the acknowledgement" };
+
+function toleranceText(): string {
+  const minutes = DURATIONS.relayClockTolerance / 60_000;
+  return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+}
+
+function flagText(flag: RelayClockFlag, subject: JourneySubject): string {
   return flag === "BEFORE_CREATION"
-    ? `This time is more than 5 minutes before ${writtenWhat} was written. That phone's clock may be wrong.`
-    : `This time is more than 5 minutes after this device scanned ${scannedWhat}. That phone's clock may be wrong.`;
+    ? `This time is more than ${toleranceText()} before ${SUBJECT_WORDS[subject]} was written. That phone's clock may be wrong.`
+    : `This time is more than ${toleranceText()} after this device scanned this journey. That phone's clock may be wrong.`;
 }
 
 function hopName(hop: RelayJourneyHop): string | undefined {
@@ -30,19 +42,20 @@ export function journeySummary(journey: RelayJourney, fromName: string, toName =
   return [fromName, ...middle, toName].join(" → ");
 }
 
+const NESTED_BOX = "space-y-3 rounded-lg border border-forest/15 p-3";
+
 /** The first or last stop of a journey: who, and one line of what happened there. */
-export interface JourneyEnd {
+interface JourneyEnd {
   name: string;
   detail: string;
 }
 
 function Marker({ status }: { status: RelayHopStatus }) {
-  const { text, className, Icon } = MARKERS[status];
+  const { text, tone, Icon } = MARKERS[status];
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
-      <Icon size={14} aria-hidden="true" />
+    <Badge Icon={Icon} tone={tone}>
       {text}
-    </span>
+    </Badge>
   );
 }
 
@@ -52,22 +65,22 @@ function Marker({ status }: { status: RelayHopStatus }) {
  */
 export function RelayJourneySection({
   journey,
+  subject,
   authorName,
   createdAt,
   scannedAt,
-  writtenWhat,
 }: {
   journey: RelayJourney;
+  subject: JourneySubject;
   authorName: string;
   createdAt: number;
   scannedAt: number;
-  writtenWhat?: string;
 }) {
   return (
     <JourneySection
       title="Relay journey"
       journey={journey}
-      writtenWhat={writtenWhat}
+      subject={subject}
       from={{
         name: authorName,
         detail: `Author · wrote it ${formatTime(createdAt)}, according to ${authorName}'s phone`,
@@ -82,33 +95,28 @@ export function RelayJourneySection({
  * Any recorded journey between two named stops, e.g. a message's way out to
  * an acknowledging member or an acknowledgement's way back (PACKET_PROTOCOL.md §10).
  */
-export function JourneySection({
+function JourneySection({
   title,
   journey,
+  subject,
   from,
   to,
   toSummaryName = to.name,
-  className = "card space-y-3",
-  headingLevel = 2,
-  writtenWhat = "the message",
-  scannedWhat = "the packet",
+  nested = false,
 }: {
   title: string;
   journey: RelayJourney;
+  subject: JourneySubject;
   from: JourneyEnd;
   to: JourneyEnd;
   toSummaryName?: string;
-  className?: string;
-  headingLevel?: 2 | 3;
-  /** For the clock-flag text: the packet whose creation time the hops are compared with. */
-  writtenWhat?: string;
-  /** For the clock-flag text: what this device scanned (the packet, or the ACK carrying a copied journey). */
-  scannedWhat?: string;
+  /** Inside an acknowledgement on the author's message page: a framed box with an h3. */
+  nested?: boolean;
 }) {
   const headingId = useId();
-  const Heading = headingLevel === 2 ? "h2" : "h3";
+  const Heading = nested ? "h3" : "h2";
   return (
-    <section className={className} aria-labelledby={headingId}>
+    <section className={nested ? NESTED_BOX : "card space-y-3"} aria-labelledby={headingId}>
       <Heading id={headingId} className="text-base">
         {title}
       </Heading>
@@ -139,7 +147,7 @@ export function JourneySection({
               </p>
               {hop.flags.map((flag) => (
                 <p key={flag} className="text-amber-dark">
-                  Time flagged: {flagText(flag, writtenWhat, scannedWhat)}
+                  Time flagged: {flagText(flag, subject)}
                 </p>
               ))}
               <p className="mono break-all text-xs muted">Member ID {hop.memberId}</p>
@@ -165,30 +173,25 @@ export function AcknowledgementJourneys({
   authorName,
   messageCreatedAt,
 }: {
-  returned: ReturnedAcknowledgement | undefined;
+  returned: ReturnedAcknowledgement;
   authorName: string;
   messageCreatedAt: number;
 }) {
-  if (!returned) {
-    return <p className="muted">This device cannot verify this acknowledgement any more, so its journeys are not shown.</p>;
-  }
   const member = returned.acknowledgedByName;
-  const nested = "space-y-3 rounded-lg border border-forest/15 p-3";
   const acknowledged = `Acknowledged it ${formatTime(returned.ackCreatedAt)}, according to ${member}'s phone`;
   return (
     <div className="space-y-3">
       {returned.outbound ? (
         <JourneySection
           title={`Message journey to ${member}`}
-          headingLevel={3}
-          className={nested}
+          nested
           journey={returned.outbound}
+          subject="MESSAGE"
           from={{ name: authorName, detail: `Author (you) · wrote it ${formatTime(messageCreatedAt)}` }}
           to={{ name: member, detail: acknowledged }}
-          scannedWhat="the acknowledgement"
         />
       ) : (
-        <section className={nested} aria-label={`Message journey to ${member}`}>
+        <section className={NESTED_BOX} aria-label={`Message journey to ${member}`}>
           <h3 className="text-base">Message journey to {member}</h3>
           <p className="muted">
             Not reported. This acknowledgement does not say how the message reached {member}: it came from an older
@@ -198,13 +201,11 @@ export function AcknowledgementJourneys({
       )}
       <JourneySection
         title={`Acknowledgement journey back from ${member}`}
-        headingLevel={3}
-        className={nested}
+        nested
         journey={returned.back}
+        subject="ACK"
         from={{ name: member, detail: acknowledged }}
         to={{ name: authorName, detail: `You · scanned it on this device ${formatTime(returned.receivedAt)}` }}
-        writtenWhat="the acknowledgement"
-        scannedWhat="the acknowledgement"
       />
     </div>
   );

@@ -1,8 +1,9 @@
 import { defineConfig } from "vitest/config";
-// `npm run vectors` runs only the golden-vector generators. Each one skips
-// when its own file exists and never overwrites it:
-// src/test/vectors/carry-v1.json (scripts/generate-vectors.ts) and
-// src/test/vectors/carry-v1-relay.json (scripts/generate-vectors-relay.ts).
+// The golden-vector generators. Each npm script targets one of them by path:
+// `npm run vectors` writes src/test/vectors/carry-v1.json (scripts/generate-vectors.ts),
+// `npm run vectors:relay` writes src/test/vectors/carry-v1-relay.json
+// (scripts/generate-vectors-relay.ts). Each refuses to overwrite its own file
+// and fails with that refusal; the other file is never read or written.
 export default defineConfig({
   test: {
     environment: "node",

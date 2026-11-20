@@ -115,5 +115,4 @@ _Avoid_: Delivered, read
 **Expired**:
 The packet's expiry passed; it can no longer be shown or relayed.
 
-**Rejected**:
-The packet failed verification and its content is never shown.
+A packet that fails verification is not a status: it is rejected at scan time, the scan page shows the error message and code, and the packet is never stored or shown.

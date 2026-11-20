@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { canonicalJson } from "../domain/canonical";
 import { bytesToB64u, utf8Encode } from "../domain/encoding";
 import { CarryError, PROTOCOL_ERROR_CODES } from "../domain/errors";
-import type { PacketEnvelope } from "../domain/packet/schemas";
+import { id16 as id16Schema, type PacketEnvelope } from "../domain/packet/schemas";
 import { makeDevice, transfer } from "../test/helpers";
 import { DURATIONS, LIMITS } from "../domain/limits";
 import { decodePayload, encodePayload } from "./codec";
@@ -279,11 +279,13 @@ describe("relay entry properties (multi-device)", () => {
   let threeHops: PacketEnvelope;
   let entries: Entry[];
   let receiver: Phone;
+  /** The third relay. */
+  let D: Phone;
   /** Members the receiver holds certificates for: the author and every relay. */
   let knownIds: string[];
 
   beforeAll(async () => {
-    const D = makeDevice();
+    D = makeDevice();
     receiver = makeDevice();
     await enroll(A, D, communityId, "Dana");
     await enroll(A, receiver, communityId, "Eli");
@@ -391,4 +393,69 @@ describe("relay entry properties (multi-device)", () => {
     // The unaltered packet is accepted by the same receiver.
     await expect(transfer(receiver, encodePayload(threeHops))).resolves.toMatchObject({ kind: "MESSAGE", hopCount: n });
   });
+
+  // Property 3 for the relay section: the signed packet test leaves `relay`
+  // alone because hopCount is unsigned, but every entry field is covered by a
+  // signature or the hash chain.
+  it("any single-character change inside a relay entry is rejected and the text is never shown", async () => {
+    // A receiver that knows every relay, so each entry's signature is checked.
+    const fresh = makeDevice();
+    await enroll(A, fresh, communityId, "Finn");
+    for (const relay of [B, C, D]) {
+      const hello = await composeMessage(relay, communityId, "Hello Finn");
+      await transfer(fresh, await preparePacketForQr(relay, hello.id));
+    }
+
+    const json = canonicalJson(threeHops);
+    const listStart = json.indexOf('"entries":[');
+    const listEnd = json.indexOf("]", listStart);
+    // Where each entry field's value sits in the JSON; each entry has four fields.
+    const pattern = /"(memberId|sig)":"([^"]*)"|"(hop|at)":(\d+)/g;
+    const fields = [...json.slice(listStart, listEnd).matchAll(pattern)].map((m, i) => {
+      const value = m[2] ?? m[4]!;
+      const closingQuote = m[2] === undefined ? 0 : 1;
+      const start = listStart + m.index + m[0].length - closingQuote - value.length;
+      return { field: (m[1] ?? m[3]) as keyof Entry, entry: Math.floor(i / 4), start, end: start + value.length };
+    });
+    expect(fields).toHaveLength(4 * n);
+    for (const f of fields) expect(json.slice(f.start, f.end)).toBe(String(entries[f.entry]![f.field]));
+
+    // Mostly characters that keep the field schema-valid, so signatures and the chain are what reject.
+    const sameAlphabet = fc.constantFrom(..."ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_");
+    const change = fc
+      .constantFrom(...fields)
+      .chain((f) =>
+        fc.record({
+          f: fc.constant(f),
+          at: fc.integer({ min: f.start, max: f.end - 1 }),
+          char: fc.oneof(sameAlphabet, asciiChar),
+        }),
+      )
+      .filter(({ at, char }) => json[at] !== char);
+
+    await fc.assert(
+      fc.asyncProperty(change, async ({ f, at, char }) => {
+        const tampered = replaceAt(json, at, char);
+        // A valid but unknown member ID on the last entry reads as an unknown
+        // member appending an entry: accepted by design (§11A rule 5).
+        const value = tampered.slice(f.start, f.end);
+        fc.pre(!(f.field === "memberId" && f.entry === n - 1 && id16Schema.safeParse(value).success));
+
+        const before = await fresh.db.packets.count();
+        let outcome: ScanOutcome | undefined;
+        let error: unknown;
+        try {
+          outcome = await transfer(fresh, bytesToB64u(utf8Encode(tampered)));
+        } catch (err) {
+          error = err;
+        }
+        expect(outcome).toBeUndefined();
+        expectRejection(error);
+        expect(shown(error)).not.toContain("north entrance");
+        expect(await fresh.db.packets.count()).toBe(before);
+      }),
+      { numRuns: 200 },
+    );
+    await expect(transfer(fresh, encodePayload(threeHops))).resolves.toMatchObject({ kind: "MESSAGE", hopCount: n });
+  }, 60_000);
 });
