@@ -7,6 +7,7 @@ import {
   type PacketView,
   preparePacketForQr,
   readPacket,
+  type TimelineEvent,
 } from "../../application/use-cases/packets";
 import { scrollBehavior } from "../../app/motion";
 import { useDevice } from "../../app/providers/DeviceProvider";
@@ -25,6 +26,19 @@ const SHARE_BLOCKED = {
   EXPIRED: "This packet has expired. Expired packets cannot be shown or relayed.",
   RELAY_LIMIT_REACHED: "This packet has reached its relay limit, so this device cannot pass it on.",
 } as const;
+
+function timelineText(e: TimelineEvent): string {
+  switch (e.event) {
+    case "CREATED":
+      return "Created on this device";
+    case "SHOWN":
+      return "Shown: first displayed as QR frames";
+    case "ACKNOWLEDGED":
+      return `Acknowledged by ${e.displayName}: their acknowledgement was scanned on this device`;
+    case "EXPIRED":
+      return "Expired: it can no longer be shown or relayed";
+  }
+}
 
 /** Keyed by record ID so state such as a shown QR never carries over to another packet. */
 export function PacketRoute() {
@@ -172,6 +186,23 @@ function PacketPage({ recordId }: { recordId: string }) {
           scannedAt={record.firstSeenAt}
           writtenWhat={isMessage ? "the message" : "the acknowledgement"}
         />
+      )}
+
+      {!viewError && view?.timeline && (
+        <section className="card space-y-2" aria-labelledby="timeline-heading">
+          <h2 id="timeline-heading" className="text-base">
+            Timeline
+          </h2>
+          <p className="text-sm muted">What this device has observed, by this device's clock.</p>
+          <ol className="space-y-2 border-l-2 border-forest/20 pl-4 text-sm">
+            {view.timeline.map((e, i) => (
+              <li key={`${e.event}-${i}`}>
+                <p className="font-semibold">{timelineText(e)}</p>
+                <p className="muted">{formatTime(e.at)}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
 
       {isMessage && outbound && (

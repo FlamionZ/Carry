@@ -13,11 +13,13 @@ import {
   preparePacketForQr,
   readPacket,
 } from "./use-cases/packets";
+import { readLedger } from "./use-cases/ledger";
 import { handleScannedText } from "./use-cases/scan";
 import { buildQrTransfer } from "./use-cases/transfer";
 import { runCleanup } from "./use-cases/maintenance";
 import type { JoinRequestPayload, PacketEnvelope } from "../domain/packet/schemas";
 import { makeDevice, transfer } from "../test/helpers";
+import { CarryDb } from "../infrastructure/db/db";
 
 type Phone = ReturnType<typeof makeDevice>;
 
@@ -699,5 +701,102 @@ describe("acknowledgement journey (3 devices, no network)", () => {
       recorded: false,
       hops: [],
     });
+  });
+});
+
+// ── Ledger ────────────────────────────────────────────────────────────────
+
+describe("Ledger (3 devices, no network)", () => {
+  it("lists only this device's own messages, newest first, with kind, status word, acknowledgement count and both journeys", async () => {
+    const { A, B, C, community } = await setup();
+    await enroll(A, B, community.id, "Sam");
+    await enroll(A, C, community.id, "Chris");
+    const samId = await memberIdOf(B);
+
+    const change = await composeMessage(A, community.id, "Water point moved to the library steps.", "CHANGE");
+    await transfer(B, await preparePacketForQr(A, change.id));
+    await transfer(C, await preparePacketForQr(B, change.id));
+    const ack = await createAcknowledgement(C, change.id);
+    await transfer(B, await preparePacketForQr(C, ack.id));
+    await transfer(A, await preparePacketForQr(B, ack.id));
+
+    A.advance(60_000);
+    const later = await composeMessage(A, community.id, "Who can bring chairs?", "REQUEST");
+    // A message from someone else, received on A, is not part of A's Ledger.
+    const fromSam = await composeMessage(B, community.id, "I have chairs.");
+    await transfer(A, await preparePacketForQr(B, fromSam.id));
+
+    const ledger = await readLedger(A, community.id);
+    expect(ledger.map((i) => [i.text, i.messageKind, i.statusLabel, i.acknowledgementCount])).toEqual([
+      ["Who can bring chairs?", "REQUEST", "Created", 0],
+      ["Water point moved to the library steps.", "CHANGE", "Acknowledged", 1],
+    ]);
+    expect(ledger[0]!.recordId).toBe(later.id);
+    const [returned] = ledger[1]!.acknowledgements;
+    expect(returned).toMatchObject({ acknowledgedByName: "Chris" });
+    expect(returned!.outbound?.hops.map((h) => [h.memberId, h.displayName, h.status])).toEqual([
+      [samId, "Sam", "VERIFIED"],
+    ]);
+    expect(returned!.back.hops.map((h) => [h.memberId, h.displayName, h.status])).toEqual([
+      [samId, "Sam", "VERIFIED"],
+    ]);
+
+    // The other members' Ledgers hold only their own messages.
+    expect((await readLedger(C, community.id)).map((i) => i.text)).toEqual([]);
+    expect((await readLedger(B, community.id)).map((i) => i.text)).toEqual(["I have chairs."]);
+  });
+
+  it("gives each message a timeline (Created, Shown, each acknowledgement scanned) that survives a reload", async () => {
+    const { A, B, C, community } = await setup();
+    await enroll(A, B, community.id, "Sam");
+    await enroll(A, C, community.id, "Chris");
+    const chrisId = await memberIdOf(C);
+    const t0 = A.now();
+
+    const msg = await composeMessage(A, community.id, "Water point moved.", "CHANGE");
+    A.advance(60_000);
+    await transfer(B, await preparePacketForQr(A, msg.id));
+    await preparePacketForQr(A, msg.id); // Showing again does not add a second Shown.
+    await transfer(C, await preparePacketForQr(B, msg.id));
+    const ack = await createAcknowledgement(C, msg.id);
+    await transfer(B, await preparePacketForQr(C, ack.id));
+    A.advance(60_000);
+    await transfer(A, await preparePacketForQr(B, ack.id));
+
+    const expected = [
+      { event: "CREATED", at: t0 },
+      { event: "SHOWN", at: t0 + 60_000 },
+      { event: "ACKNOWLEDGED", at: t0 + 120_000, memberId: chrisId, displayName: "Chris" },
+    ];
+    expect((await readLedger(A, community.id))[0]!.timeline).toEqual(expected);
+    expect((await readPacket(A, msg.id)).timeline).toEqual(expected);
+
+    // Same phone after a reload: a new connection to the same IndexedDB.
+    const reloaded = { db: new CarryDb(A.db.name), now: A.now };
+    const [again] = await readLedger(reloaded, community.id);
+    expect(again).toMatchObject({ statusLabel: "Acknowledged", acknowledgementCount: 1, timeline: expected });
+    reloaded.db.close();
+  });
+
+  it("an expired message with no acknowledgements reads as Expired, and an acknowledged one stays Acknowledged", async () => {
+    const { A, B, community } = await setup();
+    await enroll(A, B, community.id, "Sam");
+    const acknowledged = await composeMessage(A, community.id, "Gate opens at nine.");
+    await transfer(B, await preparePacketForQr(A, acknowledged.id));
+    const ack = await createAcknowledgement(B, acknowledged.id);
+    await transfer(A, await preparePacketForQr(B, ack.id));
+    A.advance(60_000);
+    const unanswered = await composeMessage(A, community.id, "Anyone seen the blue tent?", "REQUEST");
+
+    A.advance(DURATIONS.messageTtl + 1);
+    const ledger = await readLedger(A, community.id);
+    expect(ledger.map((i) => [i.text, i.statusLabel, i.acknowledgementCount])).toEqual([
+      ["Anyone seen the blue tent?", "Expired", 0],
+      ["Gate opens at nine.", "Acknowledged", 1],
+    ]);
+    expect(ledger[0]!.timeline).toEqual([
+      { event: "CREATED", at: unanswered.createdAt },
+      { event: "EXPIRED", at: unanswered.expiresAt },
+    ]);
   });
 });
