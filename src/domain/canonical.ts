@@ -104,6 +104,22 @@ export function approvalSigningString(p: {
   ].join("|");
 }
 
+/** Relay entry signing string (PACKET_PROTOCOL.md §11A). */
+export function relayEntrySigningString(p: {
+  packetId: string;
+  hop: number;
+  memberId: string;
+  at: number;
+  prevHash: string;
+}): string {
+  return [PROTOCOL_LABEL, PROTOCOL_VERSION, "RELAY", p.packetId, p.hop, p.memberId, p.at, p.prevHash].join("|");
+}
+
+/** The text hashed into the next entry's `prevHash`: an entry's signing string and its signature. */
+export function relayEntryChainText(signingString: string, sig: string): string {
+  return `${signingString}|${sig}`;
+}
+
 /** Vault-wrap AAD so a wrapped group key cannot be swapped between records. */
 export function vaultWrapContext(communityId: string, keyEpoch: number): string {
   return [PROTOCOL_LABEL, PROTOCOL_VERSION, "VAULT", communityId, keyEpoch].join("|");

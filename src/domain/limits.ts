@@ -24,4 +24,6 @@ export const DURATIONS = {
   inviteRetention: 30 * 86_400_000,
   /** Local audit events (rehearsal measurements); otherwise they grow with every scan. */
   auditRetention: 90 * 86_400_000,
+  /** Relay entry clock flags (PACKET_PROTOCOL.md §11A, rule 6). */
+  relayClockTolerance: 5 * 60_000,
 } as const;

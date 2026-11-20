@@ -8,11 +8,13 @@ import {
   utf8Decode,
   utf8Encode,
 } from "../../domain/encoding";
-import { CarryError } from "../../domain/errors";
+import { CarryError, isCarryError } from "../../domain/errors";
 import { DURATIONS, LIMITS } from "../../domain/limits";
+import { isJourneyRecorded } from "../../domain/packet/relay";
 import {
   assertImportable,
   effectiveStatus,
+  nextRelayHop,
   packetRecordId,
   prepareRelay,
   type ShareState,
@@ -37,6 +39,7 @@ import type { Device } from "../device";
 import { assertCertificate, certificateHash } from "./certificates";
 import { requireIdentity } from "./identity";
 import { loadGroupKey } from "./keys";
+import { describeRelayJourney, type RelayJourney, signRelayEntry, verifyRelayEntries } from "./relay";
 
 function signatureInput(aad: Uint8Array, nonce: Uint8Array, ciphertext: Uint8Array, certHash: Uint8Array) {
   return concatBytes(aad, nonce, ciphertext, certHash);
@@ -127,6 +130,12 @@ export interface OpenedPacket {
  * decrypts. Content is returned only if every check passes.
  */
 export async function openEnvelope(device: Device, env: PacketEnvelope): Promise<OpenedPacket> {
+  await verifyEnvelope(device, env);
+  return decryptEnvelope(device, env);
+}
+
+/** Community, key epoch, admin certificate and sender signature (§7). Nothing is decrypted. */
+async function verifyEnvelope(device: Device, env: PacketEnvelope): Promise<void> {
   const community = await device.db.communities.get(env.communityId);
   if (!community) throw new CarryError("UNKNOWN_COMMUNITY");
   if (env.keyEpoch !== community.keyEpoch) throw new CarryError("KEY_EPOCH_MISMATCH");
@@ -148,7 +157,14 @@ export async function openEnvelope(device: Device, env: PacketEnvelope): Promise
     signatureInput(aad, nonce, ciphertext, certHash),
   );
   if (!ok) throw new CarryError("SIGNATURE_INVALID");
+}
 
+/** Decrypts and validates the body. Call only after `verifyEnvelope`. */
+async function decryptEnvelope(device: Device, env: PacketEnvelope): Promise<OpenedPacket> {
+  const cert = env.memberCertificate;
+  const aad = utf8Encode(packetAad(headerOf(env)));
+  const nonce = envelopeBytes(env.nonce);
+  const ciphertext = envelopeBytes(env.ciphertext);
   const key = await loadGroupKey(device, env.communityId, env.keyEpoch);
   const plaintext = await aesDecrypt(key, nonce, ciphertext, aad);
   let parsed: unknown;
@@ -242,7 +258,10 @@ export interface ImportResult {
  */
 export async function importPacket(device: Device, env: PacketEnvelope, transferId?: string): Promise<ImportResult> {
   assertImportable(env, device.now());
-  const opened = await openEnvelope(device, env);
+  await verifyEnvelope(device, env);
+  // Relay entries: after the sender signature, before decryption (§11A).
+  await verifyRelayEntries(device, env, env.relay, device.now());
+  const opened = await decryptEnvelope(device, env);
   const { db } = device;
   const id = packetRecordId(env.communityId, env.packetId);
   const encoded = encodePayload(env);
@@ -370,8 +389,19 @@ export async function preparePacketForQr(device: Device, recordId: string): Prom
     return record.encodedEnvelope;
   }
 
-  const relayed = prepareRelay(env, now);
-  const encoded = encodePayload(relayed);
+  // Sign before the transaction (no non-Dexie awaits inside it). An
+  // unrecorded journey gets no entry, so it stays consistent with §11A rule 1.
+  const hop = nextRelayHop(env, now);
+  const entry = isJourneyRecorded(env.relay) ? await signRelayEntry(device, env, env.relay, hop) : undefined;
+  const relayed = prepareRelay(env, now, entry);
+  let encoded: string;
+  try {
+    encoded = encodePayload(relayed);
+  } catch (err) {
+    // No room left for this relay's entry within the payload limit (§11A, size).
+    if (isCarryError(err, "PAYLOAD_TOO_LARGE")) throw new CarryError("RELAY_LIMIT_REACHED");
+    throw err;
+  }
   await db.transaction("rw", db.packets, db.auditEvents, async () => {
     const current = await db.packets.get(recordId);
     if (current && current.status === "IMPORTED") {
@@ -469,6 +499,11 @@ export interface PacketView {
   messageKind?: MessageKind;
   /** ACK only. */
   original?: OriginalMessage;
+  /**
+   * INBOUND only: how this packet reached this device, from its relay entries
+   * and the members this device knows now. The author's own packets have none.
+   */
+  journey?: RelayJourney;
 }
 
 async function describeOriginal(device: Device, communityId: string, packetId: string): Promise<OriginalMessage> {
@@ -510,6 +545,10 @@ export async function readPacket(device: Device, recordId: string): Promise<Pack
     view.messageKind = body.kind ?? "ANNOUNCEMENT";
   } else {
     view.original = await describeOriginal(device, record.communityId, (opened.body as AckBody).originalPacketId);
+  }
+  if (record.direction === "INBOUND") {
+    // Clock flags compare against the time this device scanned the packet.
+    view.journey = await describeRelayJourney(device, envelope, envelope.relay, record.firstSeenAt);
   }
   return view;
 }

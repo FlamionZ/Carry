@@ -19,6 +19,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { packetRecordId, statusLabel } from "../../domain/packet/rules";
 import { useFrames } from "../packet-transfer/useFrames";
 import { ackSummary } from "./PacketRow";
+import { RelayJourneySection } from "./RelayJourney";
 
 const SHARE_BLOCKED = {
   EXPIRED: "This packet has expired. Expired packets cannot be shown or relayed.",
@@ -160,6 +161,15 @@ function PacketPage({ recordId }: { recordId: string }) {
             <dd className="mono truncate text-xs leading-5">{record.packetId}</dd>
           </dl>
         </article>
+      )}
+
+      {!viewError && view?.journey && (
+        <RelayJourneySection
+          journey={view.journey}
+          authorName={view.senderName}
+          createdAt={record.createdAt}
+          scannedAt={record.firstSeenAt}
+        />
       )}
 
       {isMessage && outbound && (

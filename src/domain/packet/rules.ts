@@ -1,5 +1,5 @@
 import { CarryError } from "../errors";
-import type { PacketEnvelope } from "./schemas";
+import type { PacketEnvelope, RelayEntry } from "./schemas";
 
 export type PacketStatus = "READY" | "IMPORTED" | "RELAYED" | "ACKNOWLEDGED" | "EXPIRED" | "REJECTED";
 export type PacketDirection = "OUTBOUND" | "INBOUND";
@@ -19,16 +19,23 @@ export function assertImportable(env: PacketEnvelope, now: number): void {
   if (env.relay.hopCount >= env.maxHops) throw new CarryError("RELAY_LIMIT_REACHED");
 }
 
-/**
- * Returns a relay copy with hopCount incremented. Only the mutable relay
- * metadata changes; header, nonce, ciphertext, certificate and signature are
- * preserved byte-for-byte in value.
- */
-export function prepareRelay(env: PacketEnvelope, now: number): PacketEnvelope {
+/** The hopCount a relay would show, after the expiry and hop-limit checks (§11). */
+export function nextRelayHop(env: PacketEnvelope, now: number): number {
   if (isExpired(env.expiresAt, now)) throw new CarryError("PACKET_EXPIRED");
   const nextHop = env.relay.hopCount + 1;
   if (nextHop >= env.maxHops) throw new CarryError("RELAY_LIMIT_REACHED");
-  return { ...env, relay: { hopCount: nextHop } };
+  return nextHop;
+}
+
+/**
+ * Returns a relay copy with hopCount incremented and, when given, the relay's
+ * entry appended (§11A). Only the mutable relay section changes; header,
+ * nonce, ciphertext, certificate and signature are preserved byte-for-byte in value.
+ */
+export function prepareRelay(env: PacketEnvelope, now: number, entry?: RelayEntry): PacketEnvelope {
+  const hopCount = nextRelayHop(env, now);
+  const entries = entry ? [...(env.relay.entries ?? []), entry] : env.relay.entries;
+  return { ...env, relay: entries ? { hopCount, entries } : { hopCount } };
 }
 
 export type ShareState = "OK" | "EXPIRED" | "RELAY_LIMIT_REACHED";
