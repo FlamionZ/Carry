@@ -120,16 +120,27 @@ Illustrative envelope (values are placeholders):
 }
 ```
 
+The author creates the packet with `relay: { "hopCount": 0 }` and no `entries` field. Relays add relay entries to `relay` (§11A).
+
 The encrypted plaintext is a small JSON body:
 
 ```json
 {
   "text": "Meet at the north entrance.",
-  "replyTo": null
+  "replyTo": null,
+  "kind": "CHANGE"
 }
 ```
 
 The display name and sender public key are included in the signed member certificate. Do not trust a display name until the certificate and packet signature have been verified.
+
+### Message kind
+
+- `kind` is optional. Allowed values: `"ANNOUNCEMENT"`, `"CHANGE"`, `"REQUEST"` (shown as Announcement, Change and Request).
+- A missing `kind` means `"ANNOUNCEMENT"`. Writers may omit it for Announcement; this build always writes it.
+- Any other value fails the body schema and the packet is rejected with `PACKET_SCHEMA_INVALID`, like any other invalid body. A new kind needs a protocol update first.
+- `kind` lives only in the encrypted body. It is never placed in the cleartext header or in `relay`, so relays and non-members cannot see it.
+- Older builds strip the unknown field when they parse the body and show the message as plain text. The ciphertext is unchanged when they relay it.
 
 ## 6. Canonical header and AES-GCM AAD
 
@@ -297,11 +308,117 @@ ACK is a regular encrypted and signed packet with `type: "ACK"`. Its encrypted b
 
 The ACK must be signed by the acknowledging member and encrypted with the current group key. The original sender marks its packet `ACKNOWLEDGED` only after importing, verifying, and decrypting an ACK whose `originalPacketId` references its packet.
 
+### Acknowledgement journey
+
+The encrypted ACK body may carry an optional copy of the acknowledged message's relay section, so the author can see how the message reached the acknowledging member:
+
+```json
+{
+  "originalPacketId": "<message-packet-id>",
+  "ackStatus": "RECEIVED",
+  "messageRelay": {
+    "hopCount": 1,
+    "entries": [
+      { "memberId": "<relay-member-id>", "hop": 1, "at": 1790000300000, "sig": "<base64url-ecdsa-signature>" }
+    ]
+  }
+}
+```
+
+- `messageRelay` has exactly the shape of the envelope's `relay` object (§11A): the message's `hopCount` and `entries` exactly as the acknowledging device stored them on import. `entries` is absent when the message arrived with an unrecorded journey.
+- This build always writes `messageRelay` when it creates an ACK, unless the encoded ACK would then exceed the 2,880-character payload limit; in that case it omits `messageRelay` (see §11A, size).
+- `messageRelay` is inside the ciphertext, so relays of the ACK cannot read or change it.
+- Only the author re-verifies the copy: the device whose own outbound MESSAGE the ACK references. After decrypting the ACK, it runs the §11A verification rules on `messageRelay`, using the original message's `packetId` and `senderSignature` from its own stored packet, and its own membership records to decide which members are known. Clock flags use the original message's `createdAt` and the time this device scanned the ACK.
+- If the copy fails any rule, the ACK is rejected with `RELAY_ENTRY_INVALID`, is not stored, and does not mark the message `ACKNOWLEDGED`.
+- An ACK without `messageRelay` (from an older build, or omitted for size) is accepted. The author shows the outbound journey as not reported.
+- Devices other than the author do not check `messageRelay`.
+- The ACK packet has its own `relay.entries` for the way back, added and verified like any other packet's (§11A), with the ACK's own `packetId` and `senderSignature`.
+- Older builds strip the unknown `messageRelay` field when they parse the ACK body.
+
 ## 11. Relay metadata
 
 `relay.hopCount` is mutable and is not part of the sender signature because it must increase during forwarding. A receiving device increments it before displaying the relay packet. `maxHops` is part of the immutable signed header. Receivers reject if `hopCount >= maxHops` or the packet has expired.
 
 Important limitation: because hopCount is mutable and a fully offline relay has no global authority, a malicious member could reset it. It is a loop-reduction hint, not a cryptographic security boundary. Duplicate detection by packet ID is the primary local loop guard.
+
+## 11A. Relay entries
+
+A relay entry is a relay's signed statement that this member carried the packet one hop. Entries live in the mutable `relay` section next to `hopCount`. The immutable header, nonce, ciphertext, member certificate and sender signature are unchanged; relays still never decrypt or re-encrypt.
+
+### Shape
+
+```json
+"relay": {
+  "hopCount": 2,
+  "entries": [
+    { "memberId": "<member-B-id>", "hop": 1, "at": 1790000300000, "sig": "<base64url-ecdsa-signature>" },
+    { "memberId": "<member-C-id>", "hop": 2, "at": 1790000900000, "sig": "<base64url-ecdsa-signature>" }
+  ]
+}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `entries` | array, optional, 0–16 items (`maxHopsLimit`) | Relay entries in hop order. Absent on a packet the author has not relayed. |
+| `memberId` | `memberId` (16 bytes, Base64URL) | The relay's member ID in this community. |
+| `hop` | integer, 1–255 | The `hopCount` this relay set when it showed the packet. |
+| `at` | timestamp (ms) | The relay's local clock when it showed the packet. Reported, not trusted. |
+| `sig` | 64-byte IEEE-P1363 ECDSA P-256 signature, Base64URL (86 chars) | The relay's signature over the signing string below. |
+
+Each field is validated by the envelope schema (§4 step 9); a malformed entry is `PACKET_SCHEMA_INVALID`. The relay's certificate is not included, which keeps entries small. An entry carries no previous-entry hash; verifiers recompute it (below).
+
+### Signing string
+
+```text
+CARRY|1|RELAY|<packetId>|<hop>|<memberId>|<at>|<prevHash>
+```
+
+- `packetId` is the envelope's `packetId`. `hop` and `at` are written as decimal integers, as in the AAD (§6).
+- The signature is ECDSA P-256 with SHA-256 over the UTF-8 bytes of that exact string, made with the relay's member signing key (the key in its membership certificate).
+- The string is built only by the canonical serialization module (`src/domain/canonical.ts`).
+
+### Hash chain
+
+`prevHash` links each entry to the one before it:
+
+- For the entry with `hop` 1: `prevHash = Base64URL(SHA-256(UTF8(senderSignature)))`, where `senderSignature` is the envelope's Base64URL string as it appears in the packet. The first entry chains from the author signature.
+- For the entry with `hop` k > 1: `prevHash = Base64URL(SHA-256(UTF8(<signing string of entry k-1> + "|" + <sig of entry k-1>)))`.
+
+The hash of a previous entry therefore covers all of its fields, its signature and, through its own `prevHash`, every earlier entry back to the author signature. `prevHash` is 43 Base64URL characters (32 bytes, no padding).
+
+### Appending an entry (relay)
+
+When a device shows a received packet for relay, in one operation it:
+
+1. Checks expiry and the hop limit as today (`hopCount + 1 < maxHops`, §11).
+2. If the stored packet's journey is recorded (entries absent with `hopCount` 0, or entries present), it computes `prevHash` from the last stored entry (or from `senderSignature` when there are none), signs an entry with `memberId` = its own member ID, `hop` = `hopCount + 1` and `at` = its current clock, and appends it.
+3. Sets `hopCount` to `hopCount + 1`.
+
+If the stored packet has an unrecorded journey (`hopCount` > 0 and no entries), the relay adds no entry and only increments `hopCount`, so the packet stays consistent with rule 1 below.
+
+The entry is made from the stored packet each time the relay QR is shown. Showing again produces a fresh entry with a new `at` and signature; it does not stack a second entry. The author never adds an entry when showing its own packet.
+
+### Verification on import
+
+Relay entries are checked after the expiry and hop-limit checks (§11, §12) and the sender signature (§7), and before decryption. Content is never shown and the packet is never stored when a check fails. Let `n = hopCount` and `entries` be the list (absent or empty both mean no entries).
+
+1. **Count.** If there are entries, their number must equal `n`. If there are none, the packet is accepted with an unrecorded journey when `n` > 0. Otherwise reject.
+2. **Order.** The entry at position i (1-based) must have `hop` = i, so hops run 1…n. Otherwise reject.
+3. **Chain.** Recompute `prevHash` for every entry from the author signature onward, as above. Every entry's signing string uses the recomputed value. A broken link shows up as a signature that does not verify under rule 4.
+4. **Known members.** An entry's member is known when this device has a membership record with a signing key for `(communityId, memberId)`, or when `memberId` is the packet's `senderId` (its certificate was just verified). Each known member's `sig` must verify. Otherwise reject.
+5. **Unknown members.** An entry whose member is not known is kept unchanged and shown as an unknown member. Its signature cannot be checked, but its fields still feed the chain, so a later known member's signature still covers it.
+6. **Clock flags.** An entry's `at` is flagged, not rejected, when it is more than the tolerance before the packet's `createdAt` (flag `BEFORE_CREATION`) or more than the tolerance after the time this device scanned the packet (flag `IN_FUTURE`). The tolerance is **5 minutes** (300,000 ms) on both sides. Entries whose times are out of order among themselves are not flagged; different phones' clocks are compared only against the packet's creation and this device's scan time.
+
+Rules 1–4 reject with `RELAY_ENTRY_INVALID`. The packet is stored with its entries exactly as received, so the next relay chains from them and an ACK can copy them (§10).
+
+### Size
+
+An entry is about 160 JSON characters including key names and its separating comma, which is about 215 characters of the Base64URL packet payload per hop. A relay that cannot append its entry within the 2,880-character payload limit (§3) refuses to show the packet with `RELAY_LIMIT_REACHED`. In practice a short message has room for several hops below the default `maxHops` of 6; a message near the 280-character text limit has fewer. A copied `messageRelay` inside an ACK costs more, because it is encrypted and then Base64URL-encoded twice (about 285 payload characters per copied entry).
+
+### Compatibility
+
+- `entries` and `messageRelay` are additive within protocol v1. The signed header, AAD (§6) and sender signature input (§7) are unchanged, so the v1 golden vectors (`src/test/vectors/carry-v1.json`) stay valid and are never edited. Relay entry cases live in a separate vector file.
+- Older builds strip `entries` when they parse a packet. When they relay it, it leaves without entries, and the next device sees an unrecorded journey; the earlier entries are lost. This is why rule 1 allows no entries but never fewer entries than `hopCount`.
 
 ## 12. Expiry and deduplication
 
@@ -330,10 +447,12 @@ Important limitation: because hopCount is mutable and a fully offline relay has 
 - `PACKET_EXPIRED`
 - `PACKET_DUPLICATE`
 - `RELAY_LIMIT_REACHED`
+- `RELAY_ENTRY_INVALID`: relay entries fail §11A rules 1–4 (count mismatch, hops out of order, broken chain, or a known member's signature does not verify), or an ACK's copied `messageRelay` fails them on the author's device (§10).
 
 ## 14. Protocol compatibility and future versions
 
 - Unknown major versions must be rejected, not guessed.
 - Minor additive fields may be ignored only if the schema marks them optional and canonical signed fields remain unchanged.
+- The message `kind` (§5), relay `entries` (§11A) and ACK `messageRelay` (§10) are such additive v1 fields. The v1 golden vectors stay unchanged and must keep verifying.
 - Never mutate an existing packet to fit a new version.
 - Keep golden test vectors for invite, join request, approval, message, ACK, QR frame, and invalid packets.

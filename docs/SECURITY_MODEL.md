@@ -26,7 +26,7 @@
 - **QR scanner input:** every scanned frame and packet is untrusted until schema, digest, community, signature, expiry, and cryptographic checks pass.
 - **Local browser storage:** data is stored on the device. Device compromise, malicious extensions, browser-profile access, XSS, or user-cleared storage can expose or destroy data.
 - **Group membership:** approved members share the ability to decrypt community messages. Any authorized member can potentially copy plaintext or take screenshots.
-- **Relay device:** a relay can observe packet metadata (community ID, packet type, timestamps, sender ID, expiry, size) even though message body is encrypted.
+- **Relay device:** a relay can observe packet metadata (community ID, packet type, timestamps, sender ID, expiry, size, and the member ID, hop and reported time of every relay entry) even though message body is encrypted. The message kind and an ACK's copied relay journey are inside the ciphertext and are not visible to relays.
 
 ## 4. Key lifecycle
 
@@ -71,9 +71,22 @@
 | Someone impersonates a member | Admin-signed membership certificate plus sender signature | Admin private-key compromise undermines member issuance trust |
 | Someone tries another community's packet | Strict community ID and key epoch checks | Packet metadata may reveal community ID |
 | QR relay loops | packet ID deduplication, hop count hint, expiry | Mutable hop count can be reset by a malicious relay |
+| Someone invents, alters, reorders or removes a middle relay entry | Signed relay entries in a hash chain from the author signature; count and hop-order checks (PACKET_PROTOCOL.md §11A) | Checks hold only for entries of members this device knows; see §5A |
+| Someone forges the journey copied into an ACK | The author re-verifies the copy against its own message's packet ID and author signature | Same known-member limitation as above |
 | Lost phone | No central data store; future encrypted backup | Local keys/data can be lost or exposed if device is compromised |
 | Member is removed while offline | P1 key rotation/re-enrollment | MVP has no instant distributed revocation; old member may retain old key |
 | XSS or malicious dependency | CSP, pinned dependencies, no CDN, dependency review, minimal scripts | Active same-origin script can potentially invoke local CryptoKeys while app is running |
+
+## 5A. Relay journey: residual risks
+
+Relay entries (PACKET_PROTOCOL.md §11A) let a device show who carried a packet, but they prove less than a full audit trail:
+
+- **Trailing-entry truncation.** A malicious relay can remove the last k entries and lower `hopCount` by k. The remaining chain still verifies, so the device sees a shorter journey and the packet regains hop budget. It can also remove all entries, which the next device shows as an unrecorded journey. Duplicate detection by packet ID stays the primary loop guard; `hopCount` and the entries are not a security boundary against a member who wants to hide earlier hops.
+- **Relay member IDs are cleartext.** Anyone who scans a packet, including a non-member, can read the member ID, hop number and reported time of every relay. Member IDs are random, but they are stable, so an observer can link the same relay across packets. Display names are not in the entries; they are shown only from membership certificates the device already holds.
+- **Unknown members cannot be verified.** A device that has never seen a member's certificate cannot check that member's signature. Anyone holding the packet, including a non-member, can append an entry with a made-up member ID, and devices that do not know that ID show it as an unknown member. Unknown member entries must never be presented as verified.
+- **Reported times are each relay's own clock.** The `at` value is what the relay's phone said. Times outside the 5-minute tolerance are flagged, not rejected, and times inside it can still be wrong.
+- **An entry shows that a member signed it, not that a hand-off happened.** A member holding the packet can sign an entry at any time before showing it.
+- **Older builds drop entries.** A relay running an older build strips all entries, so later devices see an unrecorded journey.
 
 ## 6. Explicit MVP limitations
 
@@ -91,6 +104,7 @@
 - Require a fresh 96-bit nonce for every AES-GCM encryption under a given key.
 - Use one canonical header encoder for AAD and signatures.
 - Verify admin certificate, sender signature, community, epoch, and expiry before revealing plaintext.
+- Verify relay entries before revealing plaintext, and an ACK's copied journey before counting the acknowledgement. Show unknown members and flagged times as such, never as verified.
 - Treat packet fields as untrusted JSON; validate length and type before allocating large buffers.
 - Limit QR frame count, chunk length, total transfer length, and partial-transfer count.
 - Do not render message text as HTML.
