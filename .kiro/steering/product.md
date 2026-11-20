@@ -6,7 +6,7 @@ inclusion: always
 
 CARRY is an offline-first PWA for private community messages that people carry between phones as QR frames. There is no server and no automatic mesh.
 
-Specs live in `docs/`: `ARCHITECTURE (1).md`, `PACKET_PROTOCOL.md`, `DATABASE_SCHEMA.md`, `SECURITY_MODEL.md`, `BRAND_GUIDELINES.md`, `DEMO_PLAN.md`. `docs/PRD.md` describes an unrelated product (a coal-blending dashboard); do not use it for CARRY work.
+Specs live in `docs/`: `ARCHITECTURE (1).md`, `PACKET_PROTOCOL.md`, `DATABASE_SCHEMA.md`, `SECURITY_MODEL.md`, `BRAND_GUIDELINES.md`, `DEMO_PLAN.md`.
 
 ## Copy and UX
 
