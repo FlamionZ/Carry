@@ -6,7 +6,7 @@ Offline-first PWA for private community messages carried between phones as QR fr
 
 ### Issue tracker
 
-Issues and specs live as local markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+Specs and tickets live as local markdown under `.kiro/specs/<feature>/` (`requirements.md`, `design.md`, `tasks.md`, `issues/`). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
