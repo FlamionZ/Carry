@@ -11,6 +11,6 @@ Ticket index for `requirements.md` and `design.md`, in blocking order. Each tick
 - [x] [07 Acknowledgement journey back to the author](issues/07-acknowledgement-journey.md) (blocked by: 06)
 - [x] [08 Ledger tab](issues/08-ledger-tab.md) (blocked by: 04, 05, 07)
 - [x] [09 Golden vectors for relay entries](issues/09-golden-vectors-relay-entries.md) (blocked by: 04, 07)
-- [ ] [10 KIRO.md, judge testing instructions, README and redeploy](issues/10-kiro-story-judge-instructions-redeploy.md) (blocked by: 01, 08, 09)
+- [x] [10 KIRO.md, judge testing instructions, README and redeploy](issues/10-kiro-story-judge-instructions-redeploy.md) (blocked by: 01, 08, 09)
 
 Frontier now: 01, 02, 03, 05.
