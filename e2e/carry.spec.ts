@@ -44,6 +44,11 @@ test("three phones: join, relay, acknowledgement, integrity checks, offline shel
   await scan(C.page, relayed);
   await expect(C.page.getByText(text)).toBeVisible();
   await expect(C.page.getByText("1 of 6")).toBeVisible();
+  // Sam signed a relay entry, but C has never seen Sam's certificate.
+  const journey = C.page.getByRole("region", { name: "Relay journey" });
+  await expect(journey.getByText("Alex → unknown member → you", { exact: true })).toBeVisible();
+  await expect(journey.getByText("Unknown member on this device")).toBeVisible();
+  await expect(journey.getByText("Verified", { exact: true })).toHaveCount(0);
 
   // Scene 5a: the same packet again is a duplicate.
   await scan(C.page, relayed);

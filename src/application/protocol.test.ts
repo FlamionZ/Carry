@@ -336,3 +336,213 @@ describe("CARRY/1 end-to-end (3 devices, no network)", () => {
     for (const f of frames) expect(f.length).toBeLessThanOrEqual(480);
   });
 });
+
+// ── Relay entries (PACKET_PROTOCOL.md §11A) ───────────────────────────────
+
+const enc = new TextEncoder();
+const subtle = globalThis.crypto.subtle;
+
+/** SHA-256 → Base64URL, written out here from the spec rather than via the app's helpers. */
+async function hashB64u(text: string): Promise<string> {
+  return bytesToB64u(new Uint8Array(await subtle.digest("SHA-256", enc.encode(text))));
+}
+
+async function verifiesAs(jwk: JsonWebKey, sig: string, text: string): Promise<boolean> {
+  const key = await subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+  return subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, b64uToBytes(sig), enc.encode(text));
+}
+
+async function memberIdOf(phone: Phone): Promise<string> {
+  return (await phone.db.localIdentity.get("local"))!.memberId;
+}
+
+describe("relay entries (3 devices, no network)", () => {
+  async function relayChain() {
+    const { A, B, C, community } = await setup();
+    await enroll(A, B, community.id, "Sam");
+    await enroll(A, C, community.id, "Chris");
+    const msg = await composeMessage(A, community.id, "Water point moved to the library steps.");
+    const fromA = await preparePacketForQr(A, msg.id);
+    await transfer(B, fromA);
+    return { A, B, C, community, msg, fromA };
+  }
+
+  it("a relay signs exactly one entry and increments hopCount; the signed packet is unchanged", async () => {
+    const { B, msg, fromA } = await relayChain();
+    const original = decodePayload(fromA) as PacketEnvelope;
+    B.advance(60_000);
+    const relayed = decodePayload(await preparePacketForQr(B, msg.id)) as PacketEnvelope;
+
+    expect({ ...relayed, relay: original.relay }).toEqual(original);
+    expect(relayed.relay.hopCount).toBe(1);
+    expect(relayed.relay.entries).toHaveLength(1);
+    const entry = relayed.relay.entries![0]!;
+    const sam = await B.db.localIdentity.get("local");
+    expect(entry).toEqual({ memberId: sam!.memberId, hop: 1, at: B.now(), sig: expect.any(String) });
+
+    const prevHash = await hashB64u(original.senderSignature);
+    const signing = `CARRY|1|RELAY|${original.packetId}|1|${sam!.memberId}|${entry.at}|${prevHash}`;
+    expect(await verifiesAs(sam!.signingPublicJwk, entry.sig, signing)).toBe(true);
+
+    // Showing again makes a fresh entry from the stored packet; it never stacks.
+    B.advance(60_000);
+    const again = decodePayload(await preparePacketForQr(B, msg.id)) as PacketEnvelope;
+    expect(again.relay.hopCount).toBe(1);
+    expect(again.relay.entries).toHaveLength(1);
+    expect(again.relay.entries![0]!.at).toBe(B.now());
+  });
+
+  it("the receiver shows a relay it has no certificate for as an unknown member, then verified once known", async () => {
+    const { B, C, community, msg } = await relayChain();
+    const samId = await memberIdOf(B);
+    B.advance(60_000);
+    await transfer(C, await preparePacketForQr(B, msg.id));
+
+    const atC = await readPacket(C, msg.id);
+    expect(atC.journey).toEqual({
+      hopCount: 1,
+      recorded: true,
+      hops: [{ hop: 1, memberId: samId, at: B.now(), status: "UNKNOWN_MEMBER", flags: [] }],
+    });
+
+    // C learns Sam's certificate from a message Sam wrote; the same entry now verifies.
+    const fromSam = await composeMessage(B, community.id, "Sam here.");
+    await transfer(C, await preparePacketForQr(B, fromSam.id));
+    expect((await readPacket(C, msg.id)).journey?.hops[0]).toMatchObject({
+      status: "VERIFIED",
+      displayName: "Sam",
+    });
+  });
+
+  it("each relay chains from the one before; a device that knows both relays verifies both", async () => {
+    const { A, B, C, community, msg, fromA } = await relayChain();
+    await transfer(C, await preparePacketForQr(B, msg.id));
+    C.advance(60_000);
+    const twoHops = decodePayload(await preparePacketForQr(C, msg.id)) as PacketEnvelope;
+    expect(twoHops.relay.hopCount).toBe(2);
+    const [e1, e2] = twoHops.relay.entries!;
+
+    // Entry 2 signs over the hash of entry 1's signing string and signature.
+    const original = decodePayload(fromA) as PacketEnvelope;
+    const s1 = `CARRY|1|RELAY|${original.packetId}|1|${e1!.memberId}|${e1!.at}|${await hashB64u(original.senderSignature)}`;
+    const s2 = `CARRY|1|RELAY|${original.packetId}|2|${e2!.memberId}|${e2!.at}|${await hashB64u(`${s1}|${e1!.sig}`)}`;
+    const chris = (await C.db.localIdentity.get("local"))!;
+    expect(e2!.memberId).toBe(chris.memberId);
+    expect(await verifiesAs(chris.signingPublicJwk, e2!.sig, s2)).toBe(true);
+
+    // D has seen messages from Sam and Chris, so it holds both certificates.
+    const D = makeDevice();
+    await createIdentity(D, "Dana");
+    await enroll(A, D, community.id, "Dana");
+    for (const author of [B, C]) {
+      const hello = await composeMessage(author, community.id, "Hello Dana");
+      await transfer(D, await preparePacketForQr(author, hello.id));
+    }
+    await transfer(D, encodePayload(twoHops));
+    const journey = (await readPacket(D, msg.id)).journey!;
+    expect(journey.hops.map((h) => [h.hop, h.displayName, h.status])).toEqual([
+      [1, "Sam", "VERIFIED"],
+      [2, "Chris", "VERIFIED"],
+    ]);
+  });
+
+  it("rejects miscounted, reordered, broken-chain and badly signed entries without storing the packet", async () => {
+    const { A, B, C, community, msg } = await relayChain();
+    await transfer(C, await preparePacketForQr(B, msg.id));
+    const twoHops = decodePayload(await preparePacketForQr(C, msg.id)) as PacketEnvelope;
+    const [e1, e2] = twoHops.relay.entries!;
+
+    // D knows Chris (hop 2) but not Sam (hop 1).
+    const D = makeDevice();
+    await createIdentity(D, "Dana");
+    await enroll(A, D, community.id, "Dana");
+    const hello = await composeMessage(C, community.id, "Hello Dana");
+    await transfer(D, await preparePacketForQr(C, hello.id));
+    const before = await D.db.packets.count();
+
+    const variants: Record<string, PacketEnvelope["relay"]> = {
+      "fewer entries than hopCount": { hopCount: 2, entries: [e1!] },
+      "more entries than hopCount": { hopCount: 1, entries: [e1!, e2!] },
+      "entries present at hop 0": { hopCount: 0, entries: [e1!] },
+      "hops out of order": { hopCount: 2, entries: [e2!, e1!] },
+      "hop numbers renumbered": { hopCount: 2, entries: [e1!, { ...e2!, hop: 3 }] },
+      // Sam's entry cannot be checked here, but Chris's signature covers it through the chain.
+      "unknown member's entry altered": { hopCount: 2, entries: [{ ...e1!, at: e1!.at + 1 }, e2!] },
+      "known member's signature replaced": { hopCount: 2, entries: [e1!, { ...e2!, sig: e1!.sig }] },
+    };
+    for (const [name, relay] of Object.entries(variants)) {
+      await expect(transfer(D, encodePayload({ ...twoHops, relay })), name).rejects.toMatchObject({
+        code: "RELAY_ENTRY_INVALID",
+      });
+    }
+    expect(await D.db.packets.count()).toBe(before);
+    await expect(transfer(D, encodePayload(twoHops))).resolves.toMatchObject({ kind: "MESSAGE", hopCount: 2 });
+  });
+
+  it("accepts a packet without entries as an unrecorded journey, and its relay adds no entry", async () => {
+    const { B, C, msg, fromA } = await relayChain();
+    const original = decodePayload(fromA) as PacketEnvelope;
+    // As an older build relays it: entries stripped, hopCount still counted.
+    await transfer(C, encodePayload({ ...original, relay: { hopCount: 2 } }));
+    expect((await readPacket(C, msg.id)).journey).toEqual({ hopCount: 2, recorded: false, hops: [] });
+
+    const fromC = decodePayload(await preparePacketForQr(C, msg.id)) as PacketEnvelope;
+    expect(fromC.relay).toEqual({ hopCount: 3 });
+
+    // Straight from the author: recorded, with no relays.
+    expect((await readPacket(B, msg.id)).journey).toEqual({ hopCount: 0, recorded: true, hops: [] });
+  });
+
+  it("flags relay times outside 5 minutes of creation and of this device's scan, without rejecting", async () => {
+    const tolerance = 5 * 60_000;
+    const { A, B, community, msg, fromA } = await relayChain();
+    const { createdAt } = decodePayload(fromA) as PacketEnvelope;
+    const scanAt = createdAt + DURATIONS.hour;
+
+    const cases: [number, string[]][] = [
+      [createdAt - tolerance, []],
+      [createdAt - tolerance - 1, ["BEFORE_CREATION"]],
+      [scanAt + tolerance, []],
+      [scanAt + tolerance + 1, ["IN_FUTURE"]],
+    ];
+    for (const [i, [at, flags]] of cases.entries()) {
+      B.advance(at - B.now());
+      const relayed = await preparePacketForQr(B, msg.id);
+      // A fresh receiver each time, scanning an hour after the message was written.
+      const receiver = makeDevice();
+      await createIdentity(receiver, `Receiver ${i}`);
+      await enroll(A, receiver, community.id, `Receiver ${i}`);
+      receiver.advance(scanAt - receiver.now());
+      await transfer(receiver, relayed);
+      const hop = (await readPacket(receiver, msg.id)).journey?.hops[0];
+      expect(hop?.flags, `relay at creation ${at - createdAt >= 0 ? "+" : ""}${at - createdAt} ms`).toEqual(flags);
+    }
+  });
+
+  it("refuses to relay when the next entry does not fit in the payload limit", async () => {
+    const { A, B, C, community } = await setup();
+    const phones = [B, C, makeDevice(), makeDevice(), makeDevice()];
+    await enroll(A, B, community.id, "Sam");
+    await enroll(A, C, community.id, "Chris");
+    for (const [i, p] of phones.slice(2).entries()) {
+      await createIdentity(p, `Relay ${i}`);
+      await enroll(A, p, community.id, `Relay ${i}`);
+    }
+    // 280 two-byte characters: the largest message this build lets anyone write.
+    const msg = await composeMessage(A, community.id, "é".repeat(280));
+    let payload = await preparePacketForQr(A, msg.id);
+    let error: unknown;
+    for (const p of phones) {
+      await transfer(p, payload);
+      try {
+        payload = await preparePacketForQr(p, msg.id);
+      } catch (err) {
+        error = err;
+        break;
+      }
+      expect(payload.length).toBeLessThanOrEqual(2880);
+    }
+    expect(error).toMatchObject({ code: "RELAY_LIMIT_REACHED" });
+    expect((decodePayload(payload) as PacketEnvelope).relay.hopCount).toBeLessThan(5);
+  });
+});

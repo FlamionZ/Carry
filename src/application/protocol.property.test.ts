@@ -262,3 +262,123 @@ describe("deduplication properties (multi-device)", () => {
     );
   });
 });
+
+describe("relay entry properties (multi-device)", () => {
+  type Relay = PacketEnvelope["relay"];
+  type Entry = NonNullable<Relay["entries"]>[number];
+  let threeHops: PacketEnvelope;
+  let entries: Entry[];
+  let receiver: Phone;
+  /** Members the receiver holds certificates for: the author and every relay. */
+  let knownIds: string[];
+
+  beforeAll(async () => {
+    const D = makeDevice();
+    receiver = makeDevice();
+    await enroll(A, D, communityId, "Dana");
+    await enroll(A, receiver, communityId, "Eli");
+    // A message from each relay gives the receiver that relay's certificate.
+    for (const relay of [B, C, D]) {
+      const hello = await composeMessage(relay, communityId, "Hello Eli");
+      await transfer(receiver, await preparePacketForQr(relay, hello.id));
+    }
+
+    const msg = await composeMessage(A, communityId, "Relay probe: meet at the north entrance.");
+    let payload = await preparePacketForQr(A, msg.id);
+    for (const relay of [B, C, D]) {
+      await transfer(relay, payload);
+      payload = await preparePacketForQr(relay, msg.id);
+    }
+    threeHops = decodePayload(payload) as PacketEnvelope;
+    entries = threeHops.relay.entries!;
+    expect(entries.map((e) => e.hop)).toEqual([1, 2, 3]);
+    knownIds = [threeHops.senderId, ...entries.map((e) => e.memberId)];
+  }, 30_000);
+
+  const n = 3;
+  const id16 = fc.uint8Array({ minLength: 16, maxLength: 16 }).map(bytesToB64u);
+  const sig64 = fc.uint8Array({ minLength: 64, maxLength: 64 }).map(bytesToB64u);
+
+  /** One field of one entry set to a different, schema-valid value. */
+  const alteration = fc
+    .record({
+      index: fc.nat({ max: n - 1 }),
+      change: fc.oneof(
+        fc.record({ field: fc.constant("memberId" as const), value: fc.oneof(fc.constantFrom(0, 1, 2, 3), id16) }),
+        fc.record({ field: fc.constant("hop" as const), value: fc.integer({ min: 1, max: 255 }) }),
+        fc.record({
+          field: fc.constant("at" as const),
+          value: fc.oneof(fc.integer({ min: -DURATIONS.day, max: DURATIONS.day }), fc.constantFrom(-1, 1)),
+        }),
+        fc.record({ field: fc.constant("sig" as const), value: sig64 }),
+      ),
+    })
+    .map(({ index, change }) => ({ kind: "alter" as const, index, change }));
+
+  /** Every order of the entries except the original one. */
+  const reordering = fc
+    .shuffledSubarray([0, 1, 2], { minLength: n, maxLength: n })
+    .filter((order) => order.some((i, at) => i !== at))
+    .map((order) => ({ kind: "reorder" as const, order }));
+
+  /**
+   * Entries removed with a later entry kept. Removing only trailing entries is
+   * the documented residual risk (SECURITY_MODEL.md §5A), so it is excluded.
+   */
+  const middleRemoval = fc
+    .record({ removed: fc.subarray([0, 1, 2], { minLength: 1, maxLength: n - 1 }), lowerHopCount: fc.boolean() })
+    .filter(({ removed }) => removed.some((r) => [0, 1, 2].some((k) => k > r && !removed.includes(k))))
+    .map((r) => ({ kind: "remove" as const, ...r }));
+
+  type Value<A> = A extends fc.Arbitrary<infer T> ? T : never;
+  type Edit = Value<typeof alteration> | Value<typeof reordering> | Value<typeof middleRemoval>;
+
+  function apply(edit: Edit): Relay {
+    switch (edit.kind) {
+      case "alter": {
+        const { field, value } = edit.change;
+        const entry = { ...entries[edit.index]! };
+        if (field === "memberId") entry.memberId = typeof value === "number" ? knownIds[value]! : value;
+        else if (field === "at") entry.at = entries[edit.index]!.at + value;
+        else if (field === "hop") entry.hop = value;
+        else entry.sig = value;
+        return { hopCount: n, entries: entries.map((e, i) => (i === edit.index ? entry : e)) };
+      }
+      case "reorder":
+        return { hopCount: n, entries: edit.order.map((i) => entries[i]!) };
+      case "remove": {
+        const kept = entries.filter((_, i) => !edit.removed.includes(i));
+        return { hopCount: edit.lowerHopCount ? kept.length : n, entries: kept };
+      }
+    }
+  }
+
+  it("any alteration, reordering or middle removal of relay entries is rejected and the text is never shown", async () => {
+    await fc.assert(
+      fc.asyncProperty(fc.oneof(alteration, reordering, middleRemoval), async (edit) => {
+        const relay = apply(edit);
+        fc.pre(JSON.stringify(relay) !== JSON.stringify(threeHops.relay));
+        // Replacing the last entry's member with one nobody knows reads as an
+        // unknown member appending an entry: accepted by design (§11A rule 5).
+        const last = relay.entries!.at(-1)!;
+        fc.pre(!(edit.kind === "alter" && edit.index === n - 1 && !knownIds.includes(last.memberId)));
+
+        const before = await receiver.db.packets.count();
+        let outcome: ScanOutcome | undefined;
+        let error: unknown;
+        try {
+          outcome = await transfer(receiver, encodePayload({ ...threeHops, relay }));
+        } catch (err) {
+          error = err;
+        }
+        expect(outcome).toBeUndefined();
+        expect(error).toMatchObject({ code: "RELAY_ENTRY_INVALID" });
+        expect(shown(error)).not.toContain("north entrance");
+        expect(await receiver.db.packets.count()).toBe(before);
+      }),
+      { numRuns: 200 },
+    );
+    // The unaltered packet is accepted by the same receiver.
+    await expect(transfer(receiver, encodePayload(threeHops))).resolves.toMatchObject({ kind: "MESSAGE", hopCount: n });
+  });
+});

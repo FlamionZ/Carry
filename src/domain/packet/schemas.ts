@@ -64,6 +64,22 @@ export const memberCertificateSchema = z.object({
 });
 export type MemberCertificate = z.infer<typeof memberCertificateSchema>;
 
+/** A relay's signed statement that it carried the packet one hop (PACKET_PROTOCOL.md §11A). */
+export const relayEntrySchema = z.object({
+  memberId: id16,
+  hop: z.number().int().min(1).max(255),
+  at: timestamp,
+  sig: signature,
+});
+export type RelayEntry = z.infer<typeof relayEntrySchema>;
+
+/** The mutable, unsigned-by-the-author part of a packet: hop count and relay entries. */
+export const relaySectionSchema = z.object({
+  hopCount: z.number().int().min(0).max(255),
+  entries: z.array(relayEntrySchema).max(LIMITS.maxHopsLimit).optional(),
+});
+export type RelaySection = z.infer<typeof relaySectionSchema>;
+
 export const packetEnvelopeSchema = z.object({
   v: z.literal(1),
   type: z.enum(["MESSAGE", "ACK"]),
@@ -78,7 +94,7 @@ export const packetEnvelopeSchema = z.object({
   ciphertext: b64uBounded(LIMITS.maxPayload),
   memberCertificate: memberCertificateSchema,
   senderSignature: signature,
-  relay: z.object({ hopCount: z.number().int().min(0).max(255) }),
+  relay: relaySectionSchema,
 });
 export type PacketEnvelope = z.infer<typeof packetEnvelopeSchema>;
 

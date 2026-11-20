@@ -17,6 +17,7 @@ export const PROTOCOL_ERROR_CODES = [
   "PACKET_EXPIRED",
   "PACKET_DUPLICATE",
   "RELAY_LIMIT_REACHED",
+  "RELAY_ENTRY_INVALID",
 ] as const;
 
 /** Local application errors that are not part of the wire protocol. */
@@ -54,6 +55,7 @@ const MESSAGES: Record<CarryErrorCode, string> = {
   PACKET_EXPIRED: "This packet has expired and can no longer be imported or relayed.",
   PACKET_DUPLICATE: "This packet is already on this device.",
   RELAY_LIMIT_REACHED: "This packet has reached its relay limit.",
+  RELAY_ENTRY_INVALID: "The packet's relay entries do not verify. Content was not shown.",
   IDENTITY_MISSING: "Set up this device's display name first.",
   NOT_ADMIN: "Only the community administrator can do this.",
   ALREADY_MEMBER: "This device is already in that community.",
