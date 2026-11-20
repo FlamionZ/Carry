@@ -4,12 +4,12 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The compose screen offers Announcement, Change and Request as large buttons with icon and label. Announcement is selected by default.
-- [ ] The kind travels only inside the encrypted message body, never in the cleartext header.
-- [ ] The message list and the packet page show the kind as icon plus text label, never colour alone.
-- [ ] A message without a kind, as from an older build or the v1 golden vectors, reads as Announcement.
-- [ ] Multi-device protocol tests cover each kind arriving intact through a relay, plus the fallback.
-- [ ] The three-phone browser test writes a Change and checks its label on the receiving phone.
-- [ ] The v1 golden vectors still pass unchanged.
+- [x] The compose screen offers Announcement, Change and Request as large buttons with icon and label. Announcement is selected by default.
+- [x] The kind travels only inside the encrypted message body, never in the cleartext header.
+- [x] The message list and the packet page show the kind as icon plus text label, never colour alone.
+- [x] A message without a kind, as from an older build or the v1 golden vectors, reads as Announcement.
+- [x] Multi-device protocol tests cover each kind arriving intact through a relay, plus the fallback.
+- [x] The three-phone browser test writes a Change and checks its label on the receiving phone.
+- [x] The v1 golden vectors still pass unchanged.

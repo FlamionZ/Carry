@@ -13,6 +13,7 @@ import { useDevice } from "../../app/providers/DeviceProvider";
 import { formatRemaining, formatTime, useAction } from "../../app/useAction";
 import { PageHeader } from "../../components/AppShell";
 import { ErrorNotice, Notice } from "../../components/Notice";
+import { MessageKindBadge } from "../../components/MessageKindBadge";
 import { QrFrameDisplay } from "../../components/QrFrameDisplay";
 import { StatusBadge } from "../../components/StatusBadge";
 import { packetRecordId, statusLabel } from "../../domain/packet/rules";
@@ -128,8 +129,11 @@ function PacketPage({ recordId }: { recordId: string }) {
             <StatusBadge label={label} />
           </div>
           {isMessage ? (
-            // Rendered as text only, never as HTML.
-            <p className="whitespace-pre-wrap break-words text-lg">{view?.text ?? "Verifying…"}</p>
+            <>
+              {view?.messageKind && <MessageKindBadge kind={view.messageKind} />}
+              {/* Rendered as text only, never as HTML. */}
+              <p className="whitespace-pre-wrap break-words text-lg">{view?.text ?? "Verifying…"}</p>
+            </>
           ) : (
             <div className="space-y-1">
               <p className="break-words">{view ? ackSummary(view, 140) : "Verifying…"}</p>

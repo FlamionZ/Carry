@@ -164,7 +164,13 @@ describe("CARRY/1 golden vectors: valid", () => {
     for (const frame of v.valid.messageFrames) outcome = await handleScannedText(device, frame);
     expect(outcome).toMatchObject({ kind: "MESSAGE", recordId: messageRecordId, hopCount: 0 });
     const view = await readPacket(device, messageRecordId);
-    expect(view).toMatchObject({ text: c.messageText, senderName: c.adminDisplayName, senderRole: "ADMIN" });
+    // v1 bodies carry no kind, so they read as Announcement (PACKET_PROTOCOL.md §5).
+    expect(view).toMatchObject({
+      text: c.messageText,
+      messageKind: "ANNOUNCEMENT",
+      senderName: c.adminDisplayName,
+      senderRole: "ADMIN",
+    });
   });
 
   it("relayed MESSAGE: same packet with hopCount 1; a duplicate where the original is known", async () => {
@@ -196,6 +202,7 @@ describe("CARRY/1 golden vectors: valid", () => {
     const { record } = await importPacket(device, env);
     expect(await readPacket(device, record.id)).toMatchObject({
       text: c.memberMessageText,
+      messageKind: "ANNOUNCEMENT",
       senderName: c.memberDisplayName,
       senderRole: "MEMBER",
     });

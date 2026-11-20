@@ -82,9 +82,16 @@ export const packetEnvelopeSchema = z.object({
 });
 export type PacketEnvelope = z.infer<typeof packetEnvelopeSchema>;
 
+/** PACKET_PROTOCOL.md §5 "Message kind". Lives only in the encrypted body. */
+export const MESSAGE_KINDS = ["ANNOUNCEMENT", "CHANGE", "REQUEST"] as const;
+export const messageKindSchema = z.enum(MESSAGE_KINDS);
+export type MessageKind = z.infer<typeof messageKindSchema>;
+
 export const messageBodySchema = z.object({
   text: z.string().min(1).max(LIMITS.maxMessageLength),
   replyTo: id16.nullable(),
+  /** Missing means ANNOUNCEMENT (bodies from older builds and the v1 vectors). */
+  kind: messageKindSchema.optional(),
 });
 export type MessageBody = z.infer<typeof messageBodySchema>;
 

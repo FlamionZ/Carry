@@ -104,10 +104,20 @@ export async function openCommunity(page: Page, name = "Campus Volunteers") {
   await expect(page.getByRole("heading", { name })).toBeVisible();
 }
 
-export async function writeMessage(page: Page, text: string): Promise<string[]> {
+export type MessageKindLabel = "Announcement" | "Change" | "Request";
+
+export async function writeMessage(page: Page, text: string, kind?: MessageKindLabel): Promise<string[]> {
   await openCommunity(page);
   await page.getByRole("link", { name: "Write" }).click();
   await expect(page.getByRole("heading", { name: "Write a message" })).toBeVisible();
+  // Announcement is preselected.
+  await expect(page.getByRole("radio", { name: "Announcement" })).toBeChecked();
+  if (kind) {
+    // Tap the visible option card; the radio inside it is visually hidden.
+    const option = page.getByRole("radio", { name: kind });
+    await page.locator("label", { has: option }).click();
+    await expect(option).toBeChecked();
+  }
   await page.getByLabel("Message", { exact: true }).fill(text);
   await page.getByRole("button", { name: "Create packet" }).click();
   await expect(page.getByText("Ready to pass this message along.")).toBeVisible();
