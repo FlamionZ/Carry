@@ -137,6 +137,49 @@ describe("CARRY/1 end-to-end (3 devices, no network)", () => {
     expect(ackViewB.share).toBe("OK");
   });
 
+  it("shows each device only the status it observed", async () => {
+    const { A, B, C, community } = await setup();
+    await enroll(A, B, community.id, "Sam");
+    await enroll(A, C, community.id, "Chris");
+    const label = async (phone: Phone, id: string) => (await readPacket(phone, id)).statusLabel;
+
+    // Author: Created until the frames are first shown, then Shown.
+    const msg = await composeMessage(A, community.id, "Bring water to the north gate.");
+    expect(await label(A, msg.id)).toBe("Created");
+    const fromA = await preparePacketForQr(A, msg.id);
+    expect(await label(A, msg.id)).toBe("Shown");
+
+    // Relay: Received, then Shown for relay.
+    await transfer(B, fromA);
+    expect(await label(B, msg.id)).toBe("Received");
+    const fromB = await preparePacketForQr(B, msg.id);
+    expect(await label(B, msg.id)).toBe("Shown for relay");
+
+    // Recipient: Received. Its own acknowledgement: Created, then Shown.
+    await transfer(C, fromB);
+    expect(await label(C, msg.id)).toBe("Received");
+    const ack = await createAcknowledgement(C, msg.id);
+    expect(await label(C, ack.id)).toBe("Created");
+    const ackFromC = await preparePacketForQr(C, ack.id);
+    expect(await label(C, ack.id)).toBe("Shown");
+
+    // The acknowledgement travels back through B; only A's scan makes it Acknowledged.
+    await transfer(B, ackFromC);
+    expect(await label(B, ack.id)).toBe("Received");
+    expect(await label(B, msg.id)).toBe("Shown for relay");
+    expect(await label(A, msg.id)).toBe("Shown");
+    await transfer(A, await preparePacketForQr(B, ack.id));
+    expect(await label(A, msg.id)).toBe("Acknowledged");
+    expect(await label(B, ack.id)).toBe("Shown for relay");
+    expect(await label(C, msg.id)).toBe("Received");
+
+    // Showing again keeps Shown; expiry overrides it.
+    await preparePacketForQr(C, ack.id);
+    expect(await label(C, ack.id)).toBe("Shown");
+    C.advance(DURATIONS.messageTtl + 1);
+    expect(await label(C, ack.id)).toBe("Expired");
+  });
+
   it("marks duplicates without creating another inbox entry", async () => {
     const { A, B, community } = await setup();
     await enroll(A, B, community.id, "Sam");

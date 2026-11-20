@@ -47,6 +47,41 @@ export function shareState(
   return "OK";
 }
 
+/** The glossary words for what this device has observed about a packet (GLOSSARY.md, "Status on a device"). */
+export type StatusLabel =
+  | "Created"
+  | "Shown"
+  | "Received"
+  | "Shown for relay"
+  | "Acknowledged"
+  | "Expired"
+  | "Rejected";
+
+/**
+ * The single mapping from stored status values to displayed words. Stored
+ * values are unchanged: READY reads Created until the author first shows the
+ * frames (`firstShownAt`), then Shown.
+ */
+export function statusLabel(
+  record: { status: PacketStatus; expiresAt: number; firstShownAt?: number },
+  now: number,
+): StatusLabel {
+  switch (effectiveStatus(record.status, record.expiresAt, now)) {
+    case "READY":
+      return record.firstShownAt === undefined ? "Created" : "Shown";
+    case "IMPORTED":
+      return "Received";
+    case "RELAYED":
+      return "Shown for relay";
+    case "ACKNOWLEDGED":
+      return "Acknowledged";
+    case "EXPIRED":
+      return "Expired";
+    case "REJECTED":
+      return "Rejected";
+  }
+}
+
 /** Status shown to the user, taking local expiry into account. */
 export function effectiveStatus(status: PacketStatus, expiresAt: number, now: number): PacketStatus {
   if (status === "ACKNOWLEDGED" || status === "REJECTED") return status;

@@ -36,7 +36,7 @@ test("three phones: join, relay, acknowledgement, integrity checks, offline shel
 
   await scan(B.page, message);
   await expect(B.page.getByText(text)).toBeVisible();
-  await expect(B.page.getByText("Received on this device", { exact: true })).toBeVisible();
+  await expect(B.page.getByText("Received", { exact: true })).toBeVisible();
   await B.page.getByRole("button", { name: "Relay this packet" }).click();
   await expect(B.page.getByText("Relay copy: same packet, one more hop.")).toBeVisible();
   const relayed = await readFrames(B.page);
@@ -66,7 +66,7 @@ test("three phones: join, relay, acknowledgement, integrity checks, offline shel
 
   // Not acknowledged until the ACK is scanned on A.
   await openCommunity(A.page);
-  await expect(A.page.getByText("Ready to pass along", { exact: true })).toBeVisible();
+  await expect(A.page.getByText("Shown", { exact: true })).toBeVisible();
   await scan(A.page, ackRelayed);
   await expect(A.page.getByRole("heading", { name: "Message", exact: true })).toBeVisible();
   await expect(A.page.getByText("Acknowledged", { exact: true })).toBeVisible();
