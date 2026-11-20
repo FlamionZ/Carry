@@ -138,7 +138,7 @@ export function CommunityPage() {
         <section className="space-y-3" role="tabpanel" id="panel-relay" aria-labelledby="tab-relay">
           <p className="text-sm muted">
             Messages and acknowledgements on this device that you can show to the next person. A relay passes on the
-            same encrypted packet; only its hop count changes.
+            same encrypted packet and adds a signed relay entry for the next hop.
           </p>
           {relayQueue.length === 0 && (
             <EmptyCard Icon={Repeat} title="Nothing to pass along" text="Expired packets and packets at their relay limit are not listed." />
@@ -149,7 +149,7 @@ export function CommunityPage() {
         </section>
       )}
 
-      {tab === "ledger" && <LedgerTab communityId={communityId} packets={packets} />}
+      {tab === "ledger" && <LedgerTab communityId={communityId} />}
 
       {tab === "members" && (
         <section className="space-y-5" role="tabpanel" id="panel-members" aria-labelledby="tab-members">

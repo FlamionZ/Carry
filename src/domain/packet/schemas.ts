@@ -103,13 +103,21 @@ export const MESSAGE_KINDS = ["ANNOUNCEMENT", "CHANGE", "REQUEST"] as const;
 export const messageKindSchema = z.enum(MESSAGE_KINDS);
 export type MessageKind = z.infer<typeof messageKindSchema>;
 
+/** The kind of a body without `kind` (older builds and the v1 vectors), and the compose default. */
+export const DEFAULT_MESSAGE_KIND: MessageKind = "ANNOUNCEMENT";
+
 export const messageBodySchema = z.object({
   text: z.string().min(1).max(LIMITS.maxMessageLength),
   replyTo: id16.nullable(),
-  /** Missing means ANNOUNCEMENT (bodies from older builds and the v1 vectors). */
+  /** Missing means DEFAULT_MESSAGE_KIND; read it with `messageKindOf`. */
   kind: messageKindSchema.optional(),
 });
 export type MessageBody = z.infer<typeof messageBodySchema>;
+
+/** The single place a missing `kind` becomes Announcement (PACKET_PROTOCOL.md §5). */
+export function messageKindOf(body: Pick<MessageBody, "kind">): MessageKind {
+  return body.kind ?? DEFAULT_MESSAGE_KIND;
+}
 
 export const ackBodySchema = z.object({
   originalPacketId: id16,

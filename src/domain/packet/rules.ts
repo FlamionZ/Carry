@@ -1,7 +1,11 @@
 import { CarryError } from "../errors";
 import type { PacketEnvelope, RelayEntry } from "./schemas";
 
-export type PacketStatus = "READY" | "IMPORTED" | "RELAYED" | "ACKNOWLEDGED" | "EXPIRED" | "REJECTED";
+/**
+ * Stored and displayed packet states. A packet that fails verification is
+ * rejected at scan time and never stored, so there is no rejected state.
+ */
+export type PacketStatus = "READY" | "IMPORTED" | "RELAYED" | "ACKNOWLEDGED" | "EXPIRED";
 export type PacketDirection = "OUTBOUND" | "INBOUND";
 
 export function packetRecordId(communityId: string, packetId: string): string {
@@ -61,8 +65,7 @@ export type StatusLabel =
   | "Received"
   | "Shown for relay"
   | "Acknowledged"
-  | "Expired"
-  | "Rejected";
+  | "Expired";
 
 /**
  * The single mapping from stored status values to displayed words. Stored
@@ -84,13 +87,11 @@ export function statusLabel(
       return "Acknowledged";
     case "EXPIRED":
       return "Expired";
-    case "REJECTED":
-      return "Rejected";
   }
 }
 
 /** Status shown to the user, taking local expiry into account. */
 export function effectiveStatus(status: PacketStatus, expiresAt: number, now: number): PacketStatus {
-  if (status === "ACKNOWLEDGED" || status === "REJECTED") return status;
+  if (status === "ACKNOWLEDGED") return status;
   return isExpired(expiresAt, now) ? "EXPIRED" : status;
 }

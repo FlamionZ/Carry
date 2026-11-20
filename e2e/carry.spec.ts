@@ -39,7 +39,9 @@ test("three phones: join, relay, acknowledgement, integrity checks, offline shel
   await expect(B.page.getByText("Change", { exact: true })).toBeVisible();
   await expect(B.page.getByText("Received", { exact: true })).toBeVisible();
   await B.page.getByRole("button", { name: "Relay this packet" }).click();
-  await expect(B.page.getByText("Relay copy: same packet, one more hop.")).toBeVisible();
+  await expect(
+    B.page.getByText("Relay copy: the same encrypted packet, with your signed relay entry for the next hop."),
+  ).toBeVisible();
   const relayed = await readFrames(B.page);
 
   await scan(C.page, relayed);
@@ -108,6 +110,23 @@ test("three phones: join, relay, acknowledgement, integrity checks, offline shel
   await expect(timeline.getByText(/^Acknowledged by Chris/)).toBeVisible();
   await expect(A.page.getByRole("region", { name: "Message journey to Chris" })).toBeVisible();
   await expect(A.page.getByRole("region", { name: "Acknowledgement journey back from Chris" })).toBeVisible();
+  await expect(A.page.getByRole("region", { name: "Acknowledgements" }).getByText("1 member acknowledged")).toBeVisible();
+
+  // Members confirm a Request: its count reads "confirmed" on the message page and in the Ledger.
+  const request = "Two volunteers needed at the info desk.";
+  await scan(C.page, await writeMessage(A.page, request, "Request"));
+  await expect(C.page.getByText(request)).toBeVisible();
+  await C.page.getByRole("button", { name: "Acknowledge" }).click();
+  await expect(C.page.getByRole("heading", { name: "Acknowledgement", exact: true })).toBeVisible();
+  await scan(A.page, await readFrames(C.page));
+  await expect(A.page.getByText(request)).toBeVisible();
+  const confirmations = A.page.getByRole("region", { name: "Acknowledgements" });
+  await expect(confirmations.getByText("1 member confirmed", { exact: true })).toBeVisible();
+  await openCommunity(A.page);
+  await A.page.getByRole("tab", { name: "Ledger" }).click();
+  const requestEntry = A.page.getByRole("tabpanel", { name: "Ledger" }).getByRole("link", { name: new RegExp(request) });
+  await expect(requestEntry.getByText("1 member confirmed", { exact: true })).toBeVisible();
+  await expect(entry.getByText("1 member acknowledged", { exact: true })).toBeVisible();
 
   // Scene 5b/c: corrupted frame and expired packet fixtures are rejected.
   await A.page.goto("/settings");

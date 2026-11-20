@@ -8,7 +8,7 @@ import { PageHeader } from "../../components/AppShell";
 import { ErrorNotice } from "../../components/Notice";
 import { MESSAGE_KIND_UI } from "../../components/MessageKindBadge";
 import { LIMITS } from "../../domain/limits";
-import { MESSAGE_KINDS, type MessageKind } from "../../domain/packet/schemas";
+import { DEFAULT_MESSAGE_KIND, MESSAGE_KINDS, type MessageKind } from "../../domain/packet/schemas";
 
 export function ComposePage() {
   const { communityId = "" } = useParams();
@@ -16,7 +16,7 @@ export function ComposePage() {
   const navigate = useNavigate();
   const community = useLiveQuery(() => device.db.communities.get(communityId), [communityId]);
   const [text, setText] = useState("");
-  const [kind, setKind] = useState<MessageKind>("ANNOUNCEMENT");
+  const [kind, setKind] = useState<MessageKind>(DEFAULT_MESSAGE_KIND);
   const { run, pending, error } = useAction(async () => {
     const record = await composeMessage(device, communityId, text, kind);
     navigate(`/p/${encodeURIComponent(record.id)}?show=1`, { replace: true });
@@ -38,7 +38,7 @@ export function ComposePage() {
         }}
       >
         <fieldset className="space-y-2">
-          <legend className="label">Kind</legend>
+          <legend className="label">Message kind</legend>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {MESSAGE_KINDS.map((k) => {
               const { label, hint, Icon } = MESSAGE_KIND_UI[k];

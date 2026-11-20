@@ -25,10 +25,12 @@ import {
 import {
   type AckBody,
   ackBodySchema,
+  DEFAULT_MESSAGE_KIND,
   type MemberCertificate,
   type MessageBody,
   messageBodySchema,
   type MessageKind,
+  messageKindOf,
   type PacketEnvelope,
 } from "../../domain/packet/schemas";
 import type { AcknowledgementRecord, MembershipRecord, PacketRecord } from "../../infrastructure/db/db";
@@ -214,7 +216,7 @@ export async function composeMessage(
   device: Device,
   communityId: string,
   rawText: string,
-  kind: MessageKind = "ANNOUNCEMENT",
+  kind: MessageKind = DEFAULT_MESSAGE_KIND,
 ): Promise<PacketRecord> {
   const text = normalizeMessageText(rawText);
   const { envelope, encoded } = await buildEnvelope(device, communityId, "MESSAGE", { text, replyTo: null, kind });
@@ -252,15 +254,15 @@ export interface ImportResult {
   originalRecordId?: string;
 }
 
-/**
- * Validates and stores a received MESSAGE/ACK. Duplicates (same community +
- * packet ID) never create another entry; they throw PACKET_DUPLICATE.
- */
 /** A MESSAGE this device wrote: the only kind of packet an ACK can mark Acknowledged here. */
 function isOwnMessage(record: PacketRecord, myMemberId: string): boolean {
   return record.direction === "OUTBOUND" && record.packetType === "MESSAGE" && record.senderId === myMemberId;
 }
 
+/**
+ * Validates and stores a received MESSAGE/ACK. Duplicates (same community +
+ * packet ID) never create another entry; they throw PACKET_DUPLICATE.
+ */
 export async function importPacket(device: Device, env: PacketEnvelope, transferId?: string): Promise<ImportResult> {
   assertImportable(env, device.now());
   await verifyEnvelope(device, env);
@@ -491,7 +493,6 @@ export function storedEnvelope(record: PacketRecord): PacketEnvelope {
 
 /** True when this device can show the packet as QR right now (relay queue). No decryption needed. */
 export function canShareRecord(record: PacketRecord, now: number): boolean {
-  if (record.status === "REJECTED") return false;
   try {
     return shareState(record.direction, storedEnvelope(record), now) === "OK";
   } catch {
@@ -520,7 +521,7 @@ export interface PacketView {
   senderRole: MembershipRecord["role"];
   /** MESSAGE only. */
   text?: string;
-  /** MESSAGE only. A body without `kind` reads as ANNOUNCEMENT. */
+  /** MESSAGE only. A body without `kind` reads as Announcement (`messageKindOf`). */
   messageKind?: MessageKind;
   /** ACK only. */
   original?: OriginalMessage;
@@ -531,6 +532,8 @@ export interface PacketView {
   journey?: RelayJourney;
   /** The author's own MESSAGE only: each acknowledgement scanned on this device, oldest first. */
   acknowledgements?: ReturnedAcknowledgement[];
+  /** The author's own MESSAGE only: distinct members among `acknowledgements`. */
+  acknowledgementCount?: number;
   /** The author's own MESSAGE only: what this device observed, in time order. */
   timeline?: TimelineEvent[];
 }
@@ -571,16 +574,55 @@ export interface ReturnedAcknowledgement {
   back: RelayJourney;
 }
 
+/** The author's own MESSAGE as this device observed it (PacketView and the Ledger). */
+export interface OwnMessageHistory {
+  /** Each acknowledgement scanned on this device, oldest first. */
+  acknowledgements: ReturnedAcknowledgement[];
+  /** Distinct members among `acknowledgements`. */
+  acknowledgementCount: number;
+  timeline: TimelineEvent[];
+}
+
+/**
+ * `acks` are acknowledgement records of this message (same community and
+ * packet ID); only those scanned on this device count. Each returned ACK is
+ * verified and decrypted once.
+ */
+export async function describeOwnMessage(
+  device: Device,
+  record: PacketRecord,
+  message: PacketEnvelope,
+  acks: readonly AcknowledgementRecord[],
+): Promise<OwnMessageHistory> {
+  const acknowledgements = await describeReturnedAcknowledgements(device, message, acks);
+  return {
+    acknowledgements,
+    acknowledgementCount: new Set(acknowledgements.map((a) => a.acknowledgedBy)).size,
+    timeline: messageTimeline(record, acknowledgements, device.now()),
+  };
+}
+
+/** This message's acknowledgement records on this device, whether or not they came back. */
+async function acknowledgementsOf(device: Device, message: Pick<PacketEnvelope, "communityId" | "packetId">) {
+  return (await device.db.acknowledgements.where("originalPacketId").equals(message.packetId).toArray()).filter(
+    (a) => a.communityId === message.communityId,
+  );
+}
+
 async function describeReturnedAcknowledgements(
   device: Device,
   message: PacketEnvelope,
+  all: readonly AcknowledgementRecord[],
 ): Promise<ReturnedAcknowledgement[]> {
-  const acks = (await device.db.acknowledgements.where("originalPacketId").equals(message.packetId).toArray())
-    .filter((a) => a.communityId === message.communityId && a.receivedAt !== null)
+  const acks = all
+    .filter(
+      (a) => a.communityId === message.communityId && a.originalPacketId === message.packetId && a.receivedAt !== null,
+    )
     .sort((a, b) => a.receivedAt! - b.receivedAt!);
+  const records = await device.db.packets.bulkGet(acks.map((a) => packetRecordId(a.communityId, a.ackPacketId)));
   const out: ReturnedAcknowledgement[] = [];
-  for (const ack of acks) {
-    const record = await device.db.packets.get(packetRecordId(ack.communityId, ack.ackPacketId));
+  for (const [i, ack] of acks.entries()) {
+    const record = records[i];
     if (!record || record.packetType !== "ACK") continue;
     const env = storedEnvelope(record);
     let body: AckBody;
@@ -643,7 +685,7 @@ export async function readPacket(device: Device, recordId: string): Promise<Pack
   if (envelope.type === "MESSAGE") {
     const body = opened.body as MessageBody;
     view.text = body.text;
-    view.messageKind = body.kind ?? "ANNOUNCEMENT";
+    view.messageKind = messageKindOf(body);
   } else {
     view.original = await describeOriginal(device, record.communityId, (opened.body as AckBody).originalPacketId);
   }
@@ -651,8 +693,10 @@ export async function readPacket(device: Device, recordId: string): Promise<Pack
     // Clock flags compare against the time this device scanned the packet.
     view.journey = await describeRelayJourney(device, envelope, envelope.relay, record.firstSeenAt);
   } else if (envelope.type === "MESSAGE") {
-    view.acknowledgements = await describeReturnedAcknowledgements(device, envelope);
-    view.timeline = messageTimeline(record, view.acknowledgements, now);
+    const history = await describeOwnMessage(device, record, envelope, await acknowledgementsOf(device, envelope));
+    view.acknowledgements = history.acknowledgements;
+    view.acknowledgementCount = history.acknowledgementCount;
+    view.timeline = history.timeline;
   }
   return view;
 }

@@ -19,6 +19,7 @@ import { QrFrameDisplay } from "../../components/QrFrameDisplay";
 import { StatusBadge } from "../../components/StatusBadge";
 import { packetRecordId, statusLabel } from "../../domain/packet/rules";
 import { useFrames } from "../packet-transfer/useFrames";
+import { acknowledgementCountText } from "./acknowledgementCount";
 import { ackSummary } from "./PacketRow";
 import { AcknowledgementJourneys, RelayJourneySection } from "./RelayJourney";
 
@@ -74,6 +75,8 @@ function PacketPage({ recordId }: { recordId: string }) {
     if (frames) qrRef.current?.scrollIntoView({ block: "start", behavior: scrollBehavior() });
   }, [frames]);
 
+  // The view is the one source for returned acknowledgements. `acks` is a
+  // dependency only as a change signal: an ACK scanned here re-reads the view.
   useEffect(() => {
     if (!record) return;
     let cancelled = false;
@@ -89,7 +92,7 @@ function PacketPage({ recordId }: { recordId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [device, record]);
+  }, [device, record, acks]);
 
   const show = useAction(async () => setPayload(await preparePacketForQr(device, recordId)));
   const ack = useAction(async () => {
@@ -115,16 +118,15 @@ function PacketPage({ recordId }: { recordId: string }) {
   const label = view?.statusLabel ?? statusLabel(record, device.now());
   const share = view?.share ?? "OK";
   const myId = identity?.memberId;
+  // On a received message: this device's own ACK, and ACKs from others it carries back.
   const myAck = (acks ?? []).find((a) => a.acknowledgedBy === myId);
-  const returnedAcks = (acks ?? []).filter((a) => a.receivedAt !== null);
   const carriedAcks = (acks ?? []).filter((a) => a.acknowledgedBy !== myId && a.receivedAt === null);
-  const ackRecordId = (ackPacketId: string) => packetRecordId(record.communityId, ackPacketId);
   const ackLink = (ackPacketId: string, showQr = false) =>
-    `/p/${encodeURIComponent(ackRecordId(ackPacketId))}${showQr ? "?show=1" : ""}`;
+    `/p/${encodeURIComponent(packetRecordId(record.communityId, ackPacketId))}${showQr ? "?show=1" : ""}`;
   const now = device.now();
 
   const qrLabel = !outbound
-    ? "Relay copy: same packet, one more hop."
+    ? "Relay copy: the same encrypted packet, with your signed relay entry for the next hop."
     : isMessage
       ? "Ready to pass this message along."
       : "Ready to carry this acknowledgement back.";
@@ -184,7 +186,7 @@ function PacketPage({ recordId }: { recordId: string }) {
           authorName={view.senderName}
           createdAt={record.createdAt}
           scannedAt={record.firstSeenAt}
-          writtenWhat={isMessage ? "the message" : "the acknowledgement"}
+          subject={record.packetType}
         />
       )}
 
@@ -210,29 +212,35 @@ function PacketPage({ recordId }: { recordId: string }) {
           <h2 id="acknowledgements-heading" className="text-base">
             Acknowledgements
           </h2>
-          {returnedAcks.length === 0 ? (
+          {!view?.acknowledgements || !view.messageKind ? (
+            <p className="text-sm muted">Verifying…</p>
+          ) : view.acknowledgements.length === 0 ? (
             <p className="text-sm muted">
-              None yet. An acknowledgement has to be carried back to this device and scanned before it appears here.
+              {acknowledgementCountText(view.messageKind, 0)}. An acknowledgement has to be carried back to this device
+              and scanned before it appears here.
             </p>
           ) : (
-            <ul className="space-y-4 text-sm">
-              {returnedAcks.map((a) => (
-                <li key={a.id} className="space-y-3">
-                  <p className="flex flex-wrap items-center gap-x-2">
-                    <CheckCheck size={16} className="text-teal-dark" aria-hidden="true" />
-                    <span className="font-semibold">{a.acknowledgedByName}</span>
-                    <span className="muted">· scanned {formatTime(a.receivedAt!)}</span>
-                  </p>
-                  {view && (
+            <>
+              <p className="text-sm font-semibold">
+                {acknowledgementCountText(view.messageKind, view.acknowledgementCount ?? 0)}
+              </p>
+              <ul className="space-y-4 text-sm">
+                {view.acknowledgements.map((a) => (
+                  <li key={a.ackRecordId} className="space-y-3">
+                    <p className="flex flex-wrap items-center gap-x-2">
+                      <CheckCheck size={16} className="text-teal-dark" aria-hidden="true" />
+                      <span className="font-semibold">{a.acknowledgedByName}</span>
+                      <span className="muted">· scanned {formatTime(a.receivedAt)}</span>
+                    </p>
                     <AcknowledgementJourneys
-                      returned={view.acknowledgements?.find((r) => r.ackRecordId === ackRecordId(a.ackPacketId))}
+                      returned={a}
                       authorName={view.senderName}
                       messageCreatedAt={record.createdAt}
                     />
-                  )}
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </section>
       )}
