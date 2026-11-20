@@ -80,7 +80,16 @@ test("three phones: join, relay, acknowledgement, integrity checks, offline shel
   await scan(A.page, ackRelayed);
   await expect(A.page.getByRole("heading", { name: "Message", exact: true })).toBeVisible();
   await expect(A.page.getByText("Acknowledged", { exact: true })).toBeVisible();
-  await expect(A.page.getByText("Chris", { exact: true })).toBeVisible();
+  const returned = A.page.getByRole("region", { name: "Acknowledgements" });
+  await expect(returned.getByText("Chris", { exact: true }).first()).toBeVisible();
+  // Both journeys, verified on A: the copy inside the ACK and the ACK's own entries.
+  const out = returned.getByRole("region", { name: "Message journey to Chris" });
+  await expect(out.getByText("Alex → Sam → Chris", { exact: true })).toBeVisible();
+  await expect(out.getByText("Verified", { exact: true })).toHaveCount(1);
+  const back = returned.getByRole("region", { name: "Acknowledgement journey back from Chris" });
+  await expect(back.getByText("Chris → Sam → Alex", { exact: true })).toBeVisible();
+  await expect(back.getByText("Verified", { exact: true })).toHaveCount(1);
+  await expect(returned.getByText("Unknown member on this device")).toHaveCount(0);
 
   // Scene 5b/c: corrupted frame and expired packet fixtures are rejected.
   await A.page.goto("/settings");

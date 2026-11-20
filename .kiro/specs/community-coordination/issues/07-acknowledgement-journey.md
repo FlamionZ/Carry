@@ -4,11 +4,11 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Creating an acknowledgement copies the message's stored relay entries into the encrypted acknowledgement body.
-- [ ] The author re-verifies the copied entries against the original message's packet ID and author signature. A forged or mismatched copy is not shown as verified.
-- [ ] The acknowledgement gets its own relay entries for the way back, under the same rules as ticket 06.
-- [ ] On the author's packet page, each acknowledgement shows the outbound journey and the return journey.
-- [ ] Multi-device protocol tests cover A → B → C and C → B → A, with all members verified on A.
-- [ ] The three-phone browser test shows both journeys verified on A after the acknowledgement is scanned.
+- [x] Creating an acknowledgement copies the message's stored relay entries into the encrypted acknowledgement body.
+- [x] The author re-verifies the copied entries against the original message's packet ID and author signature. A forged or mismatched copy is not shown as verified.
+- [x] The acknowledgement gets its own relay entries for the way back, under the same rules as ticket 06.
+- [x] On the author's packet page, each acknowledgement shows the outbound journey and the return journey.
+- [x] Multi-device protocol tests cover A → B → C and C → B → A, with all members verified on A.
+- [x] The three-phone browser test shows both journeys verified on A after the acknowledgement is scanned.

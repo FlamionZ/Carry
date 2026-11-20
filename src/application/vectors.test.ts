@@ -194,6 +194,10 @@ describe("CARRY/1 golden vectors: valid", () => {
       originalRecordId: messageRecordId,
     });
     expect((await device.db.packets.get(messageRecordId))?.status).toBe("ACKNOWLEDGED");
+    // A v1 ACK carries no messageRelay (§10): accepted, the outbound journey is not reported.
+    const [returned] = (await readPacket(device, messageRecordId)).acknowledgements!;
+    expect(returned).toMatchObject({ back: { hopCount: 0, recorded: true, hops: [] } });
+    expect(returned!.outbound).toBeUndefined();
   });
 
   it("member MESSAGE: verifies against the admin-issued certificate", async () => {

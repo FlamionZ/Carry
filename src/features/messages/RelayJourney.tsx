@@ -1,4 +1,6 @@
 import { ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
+import { useId } from "react";
+import type { ReturnedAcknowledgement } from "../../application/use-cases/packets";
 import type { RelayHopStatus, RelayJourney, RelayJourneyHop } from "../../application/use-cases/relay";
 import { formatTime } from "../../app/useAction";
 import type { RelayClockFlag } from "../../domain/packet/relay";
@@ -10,21 +12,28 @@ const MARKERS: Record<RelayHopStatus, { text: string; className: string; Icon: t
   SIGNATURE_FAILED: { text: "Signature does not verify", className: "bg-alert/15 text-alert-dark", Icon: ShieldAlert },
 };
 
-const FLAGS: Record<RelayClockFlag, string> = {
-  BEFORE_CREATION: "This time is more than 5 minutes before the message was written. That phone's clock may be wrong.",
-  IN_FUTURE: "This time is more than 5 minutes after this device scanned the packet. That phone's clock may be wrong.",
-};
+function flagText(flag: RelayClockFlag, writtenWhat: string, scannedWhat: string): string {
+  return flag === "BEFORE_CREATION"
+    ? `This time is more than 5 minutes before ${writtenWhat} was written. That phone's clock may be wrong.`
+    : `This time is more than 5 minutes after this device scanned ${scannedWhat}. That phone's clock may be wrong.`;
+}
 
 function hopName(hop: RelayJourneyHop): string | undefined {
   return hop.status === "UNKNOWN_MEMBER" ? undefined : hop.displayName;
 }
 
 /** One line of plain text, e.g. "Alex → unknown member → you". */
-export function journeySummary(journey: RelayJourney, authorName: string): string {
+export function journeySummary(journey: RelayJourney, fromName: string, toName = "you"): string {
   const middle = journey.recorded
     ? journey.hops.map((h) => hopName(h) ?? "unknown member")
     : [`${journey.hopCount} unrecorded ${journey.hopCount === 1 ? "hop" : "hops"}`];
-  return [authorName, ...middle, "you"].join(" → ");
+  return [fromName, ...middle, toName].join(" → ");
+}
+
+/** The first or last stop of a journey: who, and one line of what happened there. */
+export interface JourneyEnd {
+  name: string;
+  detail: string;
 }
 
 function Marker({ status }: { status: RelayHopStatus }) {
@@ -46,18 +55,64 @@ export function RelayJourneySection({
   authorName,
   createdAt,
   scannedAt,
+  writtenWhat,
 }: {
   journey: RelayJourney;
   authorName: string;
   createdAt: number;
   scannedAt: number;
+  writtenWhat?: string;
 }) {
   return (
-    <section className="card space-y-3" aria-labelledby="relay-journey-heading">
-      <h2 id="relay-journey-heading" className="text-base">
-        Relay journey
-      </h2>
-      <p className="font-semibold">{journeySummary(journey, authorName)}</p>
+    <JourneySection
+      title="Relay journey"
+      journey={journey}
+      writtenWhat={writtenWhat}
+      from={{
+        name: authorName,
+        detail: `Author · wrote it ${formatTime(createdAt)}, according to ${authorName}'s phone`,
+      }}
+      to={{ name: "You", detail: `Scanned on this device ${formatTime(scannedAt)}` }}
+      toSummaryName="you"
+    />
+  );
+}
+
+/**
+ * Any recorded journey between two named stops, e.g. a message's way out to
+ * an acknowledging member or an acknowledgement's way back (PACKET_PROTOCOL.md §10).
+ */
+export function JourneySection({
+  title,
+  journey,
+  from,
+  to,
+  toSummaryName = to.name,
+  className = "card space-y-3",
+  headingLevel = 2,
+  writtenWhat = "the message",
+  scannedWhat = "the packet",
+}: {
+  title: string;
+  journey: RelayJourney;
+  from: JourneyEnd;
+  to: JourneyEnd;
+  toSummaryName?: string;
+  className?: string;
+  headingLevel?: 2 | 3;
+  /** For the clock-flag text: the packet whose creation time the hops are compared with. */
+  writtenWhat?: string;
+  /** For the clock-flag text: what this device scanned (the packet, or the ACK carrying a copied journey). */
+  scannedWhat?: string;
+}) {
+  const headingId = useId();
+  const Heading = headingLevel === 2 ? "h2" : "h3";
+  return (
+    <section className={className} aria-labelledby={headingId}>
+      <Heading id={headingId} className="text-base">
+        {title}
+      </Heading>
+      <p className="font-semibold">{journeySummary(journey, from.name, toSummaryName)}</p>
       {!journey.recorded && (
         <p className="text-sm muted">
           Unrecorded journey. The packet reports {journey.hopCount} relay {journey.hopCount === 1 ? "hop" : "hops"} but
@@ -65,12 +120,10 @@ export function RelayJourneySection({
           do not record entries.
         </p>
       )}
-      <ol className="space-y-3 border-l-2 border-forest/20 pl-4 text-sm" aria-label="Relay journey, in hop order">
+      <ol className="space-y-3 border-l-2 border-forest/20 pl-4 text-sm" aria-label={`${title}, in hop order`}>
         <li>
-          <p className="font-semibold">{authorName}</p>
-          <p className="muted">
-            Author · wrote it {formatTime(createdAt)}, according to {authorName}'s phone
-          </p>
+          <p className="font-semibold">{from.name}</p>
+          <p className="muted">{from.detail}</p>
         </li>
         {journey.hops.map((hop) => {
           const name = hopName(hop);
@@ -86,7 +139,7 @@ export function RelayJourneySection({
               </p>
               {hop.flags.map((flag) => (
                 <p key={flag} className="text-amber-dark">
-                  Time flagged: {FLAGS[flag]}
+                  Time flagged: {flagText(flag, writtenWhat, scannedWhat)}
                 </p>
               ))}
               <p className="mono break-all text-xs muted">Member ID {hop.memberId}</p>
@@ -94,10 +147,65 @@ export function RelayJourneySection({
           );
         })}
         <li>
-          <p className="font-semibold">You</p>
-          <p className="muted">Scanned on this device {formatTime(scannedAt)}</p>
+          <p className="font-semibold">{to.name}</p>
+          <p className="muted">{to.detail}</p>
         </li>
       </ol>
     </section>
+  );
+}
+
+/**
+ * On the author's message page: how the message reached the acknowledging
+ * member (the copy carried in the ACK, re-verified here) and how the ACK came
+ * back to this device (PACKET_PROTOCOL.md §10).
+ */
+export function AcknowledgementJourneys({
+  returned,
+  authorName,
+  messageCreatedAt,
+}: {
+  returned: ReturnedAcknowledgement | undefined;
+  authorName: string;
+  messageCreatedAt: number;
+}) {
+  if (!returned) {
+    return <p className="muted">This device cannot verify this acknowledgement any more, so its journeys are not shown.</p>;
+  }
+  const member = returned.acknowledgedByName;
+  const nested = "space-y-3 rounded-lg border border-forest/15 p-3";
+  const acknowledged = `Acknowledged it ${formatTime(returned.ackCreatedAt)}, according to ${member}'s phone`;
+  return (
+    <div className="space-y-3">
+      {returned.outbound ? (
+        <JourneySection
+          title={`Message journey to ${member}`}
+          headingLevel={3}
+          className={nested}
+          journey={returned.outbound}
+          from={{ name: authorName, detail: `Author (you) · wrote it ${formatTime(messageCreatedAt)}` }}
+          to={{ name: member, detail: acknowledged }}
+          scannedWhat="the acknowledgement"
+        />
+      ) : (
+        <section className={nested} aria-label={`Message journey to ${member}`}>
+          <h3 className="text-base">Message journey to {member}</h3>
+          <p className="muted">
+            Not reported. This acknowledgement does not say how the message reached {member}: it came from an older
+            version of CARRY, or there was no room for the journey in its QR frames.
+          </p>
+        </section>
+      )}
+      <JourneySection
+        title={`Acknowledgement journey back from ${member}`}
+        headingLevel={3}
+        className={nested}
+        journey={returned.back}
+        from={{ name: member, detail: acknowledged }}
+        to={{ name: authorName, detail: `You · scanned it on this device ${formatTime(returned.receivedAt)}` }}
+        writtenWhat="the acknowledgement"
+        scannedWhat="the acknowledgement"
+      />
+    </div>
   );
 }

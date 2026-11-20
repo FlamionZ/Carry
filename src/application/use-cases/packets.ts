@@ -256,6 +256,11 @@ export interface ImportResult {
  * Validates and stores a received MESSAGE/ACK. Duplicates (same community +
  * packet ID) never create another entry; they throw PACKET_DUPLICATE.
  */
+/** A MESSAGE this device wrote: the only kind of packet an ACK can mark Acknowledged here. */
+function isOwnMessage(record: PacketRecord, myMemberId: string): boolean {
+  return record.direction === "OUTBOUND" && record.packetType === "MESSAGE" && record.senderId === myMemberId;
+}
+
 export async function importPacket(device: Device, env: PacketEnvelope, transferId?: string): Promise<ImportResult> {
   assertImportable(env, device.now());
   await verifyEnvelope(device, env);
@@ -269,6 +274,15 @@ export async function importPacket(device: Device, env: PacketEnvelope, transfer
 
   const ackBody = env.type === "ACK" ? (opened.body as AckBody) : undefined;
   const originalRecordId = ackBody ? packetRecordId(env.communityId, ackBody.originalPacketId) : undefined;
+
+  // §10: only the author re-verifies the copied journey, against its own
+  // stored message. Other devices carry the copy unchecked.
+  if (ackBody?.messageRelay && originalRecordId) {
+    const original = await db.packets.get(originalRecordId);
+    if (original && isOwnMessage(original, identity.memberId)) {
+      await verifyRelayEntries(device, storedEnvelope(original), ackBody.messageRelay, device.now());
+    }
+  }
 
   let result: ImportResult | undefined;
   let duplicate = false;
@@ -328,11 +342,7 @@ export async function importPacket(device: Device, env: PacketEnvelope, transfer
       let acknowledgedOwn = false;
       if (ackBody && originalRecordId) {
         const original = await db.packets.get(originalRecordId);
-        acknowledgedOwn =
-          !!original &&
-          original.direction === "OUTBOUND" &&
-          original.packetType === "MESSAGE" &&
-          original.senderId === identity.memberId;
+        acknowledgedOwn = !!original && isOwnMessage(original, identity.memberId);
         if (acknowledgedOwn) {
           await db.packets.update(originalRecordId, { status: "ACKNOWLEDGED", lastActionAt: now });
         }
@@ -416,6 +426,23 @@ export async function preparePacketForQr(device: Device, recordId: string): Prom
 
 // ── CreateAcknowledgement ─────────────────────────────────────────────────
 
+/**
+ * Copies the message's relay section exactly as stored into the encrypted
+ * ACK body (§10). If the ACK would then exceed the payload limit, the copy is
+ * left out and the author shows the outbound journey as not reported.
+ */
+async function buildAckEnvelope(device: Device, communityId: string, originalPacketId: string, message: PacketEnvelope) {
+  const base: AckBody = { originalPacketId, ackStatus: "RECEIVED" };
+  const { hopCount, entries } = message.relay;
+  const messageRelay = entries === undefined ? { hopCount } : { hopCount, entries };
+  try {
+    return await buildEnvelope(device, communityId, "ACK", { ...base, messageRelay });
+  } catch (err) {
+    if (!isCarryError(err, "PAYLOAD_TOO_LARGE")) throw err;
+    return buildEnvelope(device, communityId, "ACK", base);
+  }
+}
+
 export async function createAcknowledgement(device: Device, messageRecordId: string): Promise<PacketRecord> {
   const { db } = device;
   const message = await db.packets.get(messageRecordId);
@@ -424,7 +451,8 @@ export async function createAcknowledgement(device: Device, messageRecordId: str
     throw new CarryError("INPUT_INVALID", "You can only acknowledge messages received from someone else.");
   }
   // Re-verify before acknowledging.
-  await openEnvelope(device, storedEnvelope(message));
+  const messageEnvelope = storedEnvelope(message);
+  await openEnvelope(device, messageEnvelope);
 
   const existing = (await db.packets.where("originalPacketId").equals(message.packetId).toArray()).find(
     (p) => p.direction === "OUTBOUND" && p.communityId === message.communityId,
@@ -432,10 +460,7 @@ export async function createAcknowledgement(device: Device, messageRecordId: str
   if (existing) return existing;
 
   const identity = await requireIdentity(device);
-  const { envelope, encoded } = await buildEnvelope(device, message.communityId, "ACK", {
-    originalPacketId: message.packetId,
-    ackStatus: "RECEIVED",
-  });
+  const { envelope, encoded } = await buildAckEnvelope(device, message.communityId, message.packetId, messageEnvelope);
   const record = outboundRecord(device, envelope, encoded, message.packetId);
   const membership = await db.memberships.get(`${message.communityId}:${identity.memberId}`);
   await db.transaction("rw", [db.packets, db.acknowledgements, db.auditEvents], async () => {
@@ -504,6 +529,59 @@ export interface PacketView {
    * and the members this device knows now. The author's own packets have none.
    */
   journey?: RelayJourney;
+  /** The author's own MESSAGE only: each acknowledgement scanned on this device, oldest first. */
+  acknowledgements?: ReturnedAcknowledgement[];
+}
+
+/** An acknowledgement that came back to the author, with both journeys (§10). */
+export interface ReturnedAcknowledgement {
+  ackRecordId: string;
+  acknowledgedBy: string;
+  acknowledgedByName: string;
+  /** The ACK's createdAt, by the acknowledging member's clock. */
+  ackCreatedAt: number;
+  /** When this device scanned the ACK. */
+  receivedAt: number;
+  /** How the message reached the acknowledging member. Undefined when the ACK did not report it. */
+  outbound?: RelayJourney;
+  /** How the ACK came back to this device, from its own relay entries. */
+  back: RelayJourney;
+}
+
+async function describeReturnedAcknowledgements(
+  device: Device,
+  message: PacketEnvelope,
+): Promise<ReturnedAcknowledgement[]> {
+  const acks = (await device.db.acknowledgements.where("originalPacketId").equals(message.packetId).toArray())
+    .filter((a) => a.communityId === message.communityId && a.receivedAt !== null)
+    .sort((a, b) => a.receivedAt! - b.receivedAt!);
+  const out: ReturnedAcknowledgement[] = [];
+  for (const ack of acks) {
+    const record = await device.db.packets.get(packetRecordId(ack.communityId, ack.ackPacketId));
+    if (!record || record.packetType !== "ACK") continue;
+    const env = storedEnvelope(record);
+    let body: AckBody;
+    try {
+      body = (await openEnvelope(device, env)).body as AckBody;
+    } catch {
+      // The ACK can no longer be verified here (e.g. a later key epoch): show no journeys for it.
+      continue;
+    }
+    // Clock flags use the time this device scanned the ACK, for both journeys.
+    const scannedAt = record.firstSeenAt;
+    out.push({
+      ackRecordId: record.id,
+      acknowledgedBy: ack.acknowledgedBy,
+      acknowledgedByName: ack.acknowledgedByName,
+      ackCreatedAt: env.createdAt,
+      receivedAt: ack.receivedAt!,
+      outbound: body.messageRelay
+        ? await describeRelayJourney(device, message, body.messageRelay, scannedAt)
+        : undefined,
+      back: await describeRelayJourney(device, env, env.relay, scannedAt),
+    });
+  }
+  return out;
 }
 
 async function describeOriginal(device: Device, communityId: string, packetId: string): Promise<OriginalMessage> {
@@ -549,6 +627,8 @@ export async function readPacket(device: Device, recordId: string): Promise<Pack
   if (record.direction === "INBOUND") {
     // Clock flags compare against the time this device scanned the packet.
     view.journey = await describeRelayJourney(device, envelope, envelope.relay, record.firstSeenAt);
+  } else if (envelope.type === "MESSAGE") {
+    view.acknowledgements = await describeReturnedAcknowledgements(device, envelope);
   }
   return view;
 }
