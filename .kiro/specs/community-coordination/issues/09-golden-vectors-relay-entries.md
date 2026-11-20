@@ -4,7 +4,7 @@
 
 **Blocked by:** 04, 07
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] A second vector file is generated once, and the generator refuses to overwrite it. It contains:
   - a message with a kind, relayed twice with signed entries;

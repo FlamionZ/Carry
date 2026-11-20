@@ -17,3 +17,4 @@ fileMatchPattern: "src/**/*.ts"
 - QR transfers keep chunks only while partial. Handled transfers are deleted because chunks can contain invite secrets.
 - Throw `CarryError` with a code from `src/domain/errors.ts`.
 - `src/test/vectors/carry-v1.json` pins the v1 wire format (checked by `src/application/vectors.test.ts`). Never edit or regenerate it. A failing vector means the change breaks phones running older builds: fix the code, not the vectors.
+- `src/test/vectors/carry-v1-relay.json` pins relay entries, message kinds and the acknowledgement journey (checked by `src/application/vectors-relay.test.ts`). It is frozen exactly like `carry-v1.json`: never edit or regenerate it.
