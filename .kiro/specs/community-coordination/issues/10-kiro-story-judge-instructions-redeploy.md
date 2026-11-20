@@ -1,4 +1,4 @@
-# 10: KIRO.md, judge testing instructions, README and redeploy
+﻿# 10: KIRO.md, judge testing instructions, README and redeploy
 
 **What to build:** Judges can understand how Kiro shaped the project and can verify CARRY themselves on one laptop. The live site runs the new build.
 
@@ -13,8 +13,8 @@
 - [x] `KIRO.md` states plainly that work before this spec was not spec-driven.
 - [x] Judge testing instructions cover join, a message of each kind, relay, acknowledgement, the Ledger, and the duplicate and tamper checks. They use two or three browser profiles and only real app paths (frame text, paste, screenshot upload), with no simulation mode.
 - [x] The README describes the coordination positioning, the new features and the updated test counts, without claiming a first, a mesh, or emergency use.
-- [ ] The full suite passes (unit, golden vectors, browser tests on three engines), and `npm run deploy` publishes the build.
-- [ ] The live site is checked for headers, offline reload and the new build version.
+- [x] The full suite passes (unit, golden vectors, browser tests on three engines), and `npm run deploy` publishes the build.
+- [x] The live site is checked for headers, offline reload and the new build version.
 
 ## Comments
 
