@@ -15,7 +15,7 @@ import { PageHeader } from "../../components/AppShell";
 import { ErrorNotice, Notice } from "../../components/Notice";
 import { QrFrameDisplay } from "../../components/QrFrameDisplay";
 import { StatusBadge } from "../../components/StatusBadge";
-import { packetRecordId } from "../../domain/packet/rules";
+import { packetRecordId, statusLabel } from "../../domain/packet/rules";
 import { useFrames } from "../packet-transfer/useFrames";
 import { ackSummary } from "./PacketRow";
 
@@ -96,7 +96,7 @@ function PacketPage({ recordId }: { recordId: string }) {
   const back = `/c/${encodeURIComponent(record.communityId)}`;
   const isMessage = record.packetType === "MESSAGE";
   const outbound = record.direction === "OUTBOUND";
-  const status = view?.status ?? record.status;
+  const label = view?.statusLabel ?? statusLabel(record, device.now());
   const share = view?.share ?? "OK";
   const myId = identity?.memberId;
   const myAck = (acks ?? []).find((a) => a.acknowledgedBy === myId);
@@ -125,7 +125,7 @@ function PacketPage({ recordId }: { recordId: string }) {
               {outbound ? "You" : (view?.senderName ?? "…")}
               {view?.senderRole === "ADMIN" && <span className="ml-2 text-xs uppercase muted">admin</span>}
             </p>
-            <StatusBadge status={status} />
+            <StatusBadge label={label} />
           </div>
           {isMessage ? (
             // Rendered as text only, never as HTML.

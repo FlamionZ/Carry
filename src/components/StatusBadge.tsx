@@ -1,19 +1,21 @@
-import { CheckCheck, Clock, Inbox, Repeat, Send, ShieldAlert } from "lucide-react";
-import type { PacketStatus } from "../domain/packet/rules";
+import { CheckCheck, Clock, Inbox, PenLine, QrCode, Repeat, ShieldAlert } from "lucide-react";
+import type { StatusLabel } from "../domain/packet/rules";
 
-const STYLES: Record<PacketStatus, { label: string; className: string; Icon: typeof Clock }> = {
-  READY: { label: "Ready to pass along", className: "bg-amber/25 text-amber-dark", Icon: Send },
-  IMPORTED: { label: "Received on this device", className: "bg-forest/10 text-forest", Icon: Inbox },
-  // Set when the relay QR is shown; scanning by the next person is not observable.
-  RELAYED: { label: "Shown for relay", className: "bg-forest/10 text-forest", Icon: Repeat },
-  // Teal/green is reserved for a returned ACK.
-  ACKNOWLEDGED: { label: "Acknowledged", className: "bg-teal/15 text-teal-dark", Icon: CheckCheck },
-  EXPIRED: { label: "Expired", className: "bg-sage/20 text-sage-dark", Icon: Clock },
-  REJECTED: { label: "Rejected", className: "bg-alert/15 text-alert-dark", Icon: ShieldAlert },
+// Words come from statusLabel() in domain/packet/rules.ts; this only styles them.
+const STYLES: Record<StatusLabel, { className: string; Icon: typeof Clock }> = {
+  Created: { className: "bg-amber/25 text-amber-dark", Icon: PenLine },
+  // Displayed as frames; whether anyone scanned them is not observable.
+  Shown: { className: "bg-forest/10 text-forest", Icon: QrCode },
+  Received: { className: "bg-forest/10 text-forest", Icon: Inbox },
+  "Shown for relay": { className: "bg-forest/10 text-forest", Icon: Repeat },
+  // Teal/green is reserved for an acknowledgement scanned on this device.
+  Acknowledged: { className: "bg-teal/15 text-teal-dark", Icon: CheckCheck },
+  Expired: { className: "bg-sage/20 text-sage-dark", Icon: Clock },
+  Rejected: { className: "bg-alert/15 text-alert-dark", Icon: ShieldAlert },
 };
 
-export function StatusBadge({ status }: { status: PacketStatus }) {
-  const { label, className, Icon } = STYLES[status];
+export function StatusBadge({ label }: { label: StatusLabel }) {
+  const { className, Icon } = STYLES[label];
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
       <Icon size={14} aria-hidden="true" />

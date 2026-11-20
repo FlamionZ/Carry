@@ -6,7 +6,7 @@ import { useDevice } from "../../app/providers/DeviceProvider";
 import { formatTime } from "../../app/useAction";
 import { StatusBadge } from "../../components/StatusBadge";
 import { describeError } from "../../domain/errors";
-import { effectiveStatus } from "../../domain/packet/rules";
+import { statusLabel } from "../../domain/packet/rules";
 import type { PacketRecord } from "../../infrastructure/db/db";
 
 function truncate(text: string, max: number): string {
@@ -39,7 +39,7 @@ export function PacketRow({ record }: { record: PacketRecord }) {
     return () => {
       cancelled = true;
     };
-  }, [device, record.id, record.status, record.lastActionAt]);
+  }, [device, record.id, record.status, record.lastActionAt, record.firstShownAt]);
 
   const isAck = record.packetType === "ACK";
   const Icon = isAck ? CheckCheck : MessageSquare;
@@ -59,7 +59,7 @@ export function PacketRow({ record }: { record: PacketRecord }) {
       <p className="line-clamp-2 whitespace-pre-wrap break-words">
         {error ? <span className="text-alert-dark">{describeError(error).message}</span> : summary}
       </p>
-      <StatusBadge status={view?.status ?? effectiveStatus(record.status, record.expiresAt, device.now())} />
+      <StatusBadge label={view?.statusLabel ?? statusLabel(record, device.now())} />
     </Link>
   );
 }

@@ -17,6 +17,8 @@ import {
   prepareRelay,
   type ShareState,
   shareState,
+  type StatusLabel,
+  statusLabel,
 } from "../../domain/packet/rules";
 import {
   type AckBody,
@@ -349,6 +351,15 @@ export async function preparePacketForQr(device: Device, recordId: string): Prom
 
   if (record.direction === "OUTBOUND") {
     if (now >= env.expiresAt) throw new CarryError("PACKET_EXPIRED");
+    if (record.firstShownAt === undefined) {
+      await db.transaction("rw", db.packets, db.auditEvents, async () => {
+        const current = await db.packets.get(recordId);
+        if (current && current.firstShownAt === undefined) {
+          await db.packets.update(recordId, { firstShownAt: now, lastActionAt: now });
+          await auditEvent(device, "PACKET_SHOWN", record.packetId, record.communityId);
+        }
+      });
+    }
     return record.encodedEnvelope;
   }
 
@@ -440,6 +451,8 @@ export interface PacketView {
   record: PacketRecord;
   envelope: PacketEnvelope;
   status: PacketRecord["status"];
+  /** The glossary word for what this device has observed. */
+  statusLabel: StatusLabel;
   share: ShareState;
   senderName: string;
   senderRole: MembershipRecord["role"];
@@ -477,6 +490,7 @@ export async function readPacket(device: Device, recordId: string): Promise<Pack
     record,
     envelope,
     status: effectiveStatus(record.status, record.expiresAt, now),
+    statusLabel: statusLabel(record, now),
     share: shareState(record.direction, envelope, now),
     senderName: opened.certificate.body.displayName,
     senderRole: opened.certificate.body.role,

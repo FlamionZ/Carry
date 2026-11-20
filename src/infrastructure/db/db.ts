@@ -112,6 +112,11 @@ export interface PacketRecord {
   expiresAt: number;
   firstSeenAt: number;
   lastActionAt: number;
+  /**
+   * OUTBOUND only: when this device first displayed its own packet as frames.
+   * Optional and unindexed, so no schema version change; absent reads as Created.
+   */
+  firstShownAt?: number;
   /** For ACK packets: the message being acknowledged (from the decrypted body). */
   originalPacketId?: string;
 }
