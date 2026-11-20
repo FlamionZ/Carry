@@ -194,6 +194,19 @@ describe("CARRY/1 end-to-end (3 devices, no network)", () => {
     expect(await B.db.packets.count()).toBe(0);
   });
 
+  it("rejects a ciphertext whose last character has non-zero padding bits", async () => {
+    // Shrunk counterexample of the single-character tampering property.
+    const { A, B, community } = await setup();
+    await enroll(A, B, community.id, "Sam");
+    const msg = await composeMessage(A, community.id, "Tamper probe: meet at the north entrance.");
+    const env = decodePayload(msg.encodedEnvelope) as PacketEnvelope;
+    // 111 characters: the last one carries 2 padding bits, which "1" sets.
+    expect(env.ciphertext.length % 4).toBe(3);
+    const tampered = encodePayload({ ...env, ciphertext: env.ciphertext.slice(0, -1) + "1" });
+    await expect(transfer(B, tampered)).rejects.toMatchObject({ code: "PACKET_SCHEMA_INVALID" });
+    expect(await B.db.packets.count()).toBe(0);
+  });
+
   it("rejects expired packets and refuses to relay them", async () => {
     const { A, B, community } = await setup();
     await enroll(A, B, community.id, "Sam");
