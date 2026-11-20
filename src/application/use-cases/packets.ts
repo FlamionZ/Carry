@@ -26,6 +26,7 @@ import {
   type MemberCertificate,
   type MessageBody,
   messageBodySchema,
+  type MessageKind,
   type PacketEnvelope,
 } from "../../domain/packet/schemas";
 import type { AcknowledgementRecord, MembershipRecord, PacketRecord } from "../../infrastructure/db/db";
@@ -192,9 +193,15 @@ export function normalizeMessageText(raw: string): string {
   return text;
 }
 
-export async function composeMessage(device: Device, communityId: string, rawText: string): Promise<PacketRecord> {
+/** This build always writes `kind`, including for Announcements (PACKET_PROTOCOL.md §5). */
+export async function composeMessage(
+  device: Device,
+  communityId: string,
+  rawText: string,
+  kind: MessageKind = "ANNOUNCEMENT",
+): Promise<PacketRecord> {
   const text = normalizeMessageText(rawText);
-  const { envelope, encoded } = await buildEnvelope(device, communityId, "MESSAGE", { text, replyTo: null });
+  const { envelope, encoded } = await buildEnvelope(device, communityId, "MESSAGE", { text, replyTo: null, kind });
   const record = outboundRecord(device, envelope, encoded);
   const { db } = device;
   await db.transaction("rw", db.packets, db.auditEvents, async () => {
@@ -458,6 +465,8 @@ export interface PacketView {
   senderRole: MembershipRecord["role"];
   /** MESSAGE only. */
   text?: string;
+  /** MESSAGE only. A body without `kind` reads as ANNOUNCEMENT. */
+  messageKind?: MessageKind;
   /** ACK only. */
   original?: OriginalMessage;
 }
@@ -496,7 +505,9 @@ export async function readPacket(device: Device, recordId: string): Promise<Pack
     senderRole: opened.certificate.body.role,
   };
   if (envelope.type === "MESSAGE") {
-    view.text = (opened.body as MessageBody).text;
+    const body = opened.body as MessageBody;
+    view.text = body.text;
+    view.messageKind = body.kind ?? "ANNOUNCEMENT";
   } else {
     view.original = await describeOriginal(device, record.communityId, (opened.body as AckBody).originalPacketId);
   }

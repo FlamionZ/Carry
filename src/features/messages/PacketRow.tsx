@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { type PacketView, readPacket } from "../../application/use-cases/packets";
 import { useDevice } from "../../app/providers/DeviceProvider";
 import { formatTime } from "../../app/useAction";
+import { MessageKindBadge } from "../../components/MessageKindBadge";
 import { StatusBadge } from "../../components/StatusBadge";
 import { describeError } from "../../domain/errors";
 import { statusLabel } from "../../domain/packet/rules";
@@ -55,6 +56,7 @@ export function PacketRow({ record }: { record: PacketRecord }) {
         </span>
         <span className="muted">{formatTime(record.createdAt)}</span>
       </div>
+      {view?.messageKind && <MessageKindBadge kind={view.messageKind} />}
       {/* Rendered as text only, never as HTML. */}
       <p className="line-clamp-2 whitespace-pre-wrap break-words">
         {error ? <span className="text-alert-dark">{describeError(error).message}</span> : summary}

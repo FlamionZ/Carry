@@ -180,6 +180,38 @@ describe("CARRY/1 end-to-end (3 devices, no network)", () => {
     expect(await label(C, ack.id)).toBe("Expired");
   });
 
+  it.each(["ANNOUNCEMENT", "CHANGE", "REQUEST"] as const)(
+    "carries a %s message kind intact through a relay, inside the ciphertext only",
+    async (kind) => {
+      const { A, B, C, community } = await setup();
+      await enroll(A, B, community.id, "Sam");
+      await enroll(A, C, community.id, "Chris");
+
+      const msg = await composeMessage(A, community.id, "Meeting point moved to the library steps.", kind);
+      expect(await readPacket(A, msg.id)).toMatchObject({ messageKind: kind });
+
+      // The kind is never in the cleartext envelope, header or relay metadata.
+      const cleartext = utf8Decode(b64uToBytes(msg.encodedEnvelope));
+      expect(cleartext).not.toContain("kind");
+      expect(cleartext).not.toContain(kind);
+
+      await transfer(B, await preparePacketForQr(A, msg.id));
+      await transfer(C, await preparePacketForQr(B, msg.id));
+      expect(await readPacket(C, msg.id)).toMatchObject({
+        messageKind: kind,
+        text: "Meeting point moved to the library steps.",
+      });
+    },
+  );
+
+  it("writes a new message as an Announcement unless another kind is chosen", async () => {
+    const { A, B, community } = await setup();
+    await enroll(A, B, community.id, "Sam");
+    const msg = await composeMessage(A, community.id, "Hello");
+    await transfer(B, await preparePacketForQr(A, msg.id));
+    expect(await readPacket(B, msg.id)).toMatchObject({ messageKind: "ANNOUNCEMENT" });
+  });
+
   it("marks duplicates without creating another inbox entry", async () => {
     const { A, B, community } = await setup();
     await enroll(A, B, community.id, "Sam");
@@ -241,9 +273,10 @@ describe("CARRY/1 end-to-end (3 devices, no network)", () => {
     // Shrunk counterexample of the single-character tampering property.
     const { A, B, community } = await setup();
     await enroll(A, B, community.id, "Sam");
-    const msg = await composeMessage(A, community.id, "Tamper probe: meet at the north entrance.");
+    // Text length chosen so the body (which now includes the message kind) gives 110 ciphertext bytes.
+    const msg = await composeMessage(A, community.id, "Tamper probe: meet at the north gate entrance.");
     const env = decodePayload(msg.encodedEnvelope) as PacketEnvelope;
-    // 111 characters: the last one carries 2 padding bits, which "1" sets.
+    // 147 characters: the last one carries 2 padding bits, which "1" sets.
     expect(env.ciphertext.length % 4).toBe(3);
     const tampered = encodePayload({ ...env, ciphertext: env.ciphertext.slice(0, -1) + "1" });
     await expect(transfer(B, tampered)).rejects.toMatchObject({ code: "PACKET_SCHEMA_INVALID" });

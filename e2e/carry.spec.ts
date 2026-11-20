@@ -30,12 +30,13 @@ test("three phones: join, relay, acknowledgement, integrity checks, offline shel
   await enroll(A.page, B.page, "Sam", pasteTransfer);
   await enroll(A.page, C.page, "Chris", pasteTransfer);
 
-  // Scene 3: A → B → C.
+  // Scene 3: A → B → C. The message is a Change; its kind travels inside the ciphertext.
   const text = "Meet at the north entrance. Bring the first-aid kit.";
-  const message = await writeMessage(A.page, text);
+  const message = await writeMessage(A.page, text, "Change");
 
   await scan(B.page, message);
   await expect(B.page.getByText(text)).toBeVisible();
+  await expect(B.page.getByText("Change", { exact: true })).toBeVisible();
   await expect(B.page.getByText("Received", { exact: true })).toBeVisible();
   await B.page.getByRole("button", { name: "Relay this packet" }).click();
   await expect(B.page.getByText("Relay copy: same packet, one more hop.")).toBeVisible();
@@ -44,6 +45,10 @@ test("three phones: join, relay, acknowledgement, integrity checks, offline shel
   await scan(C.page, relayed);
   await expect(C.page.getByText(text)).toBeVisible();
   await expect(C.page.getByText("1 of 6")).toBeVisible();
+  await expect(C.page.getByText("Change", { exact: true })).toBeVisible();
+  // The message list shows the kind as a text label too.
+  await openCommunity(C.page);
+  await expect(C.page.getByRole("link", { name: /Change/ }).getByText("Change", { exact: true })).toBeVisible();
 
   // Scene 5a: the same packet again is a duplicate.
   await scan(C.page, relayed);
