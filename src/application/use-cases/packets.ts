@@ -1,5 +1,13 @@
 import { canonicalJson, packetAad, type PacketHeader } from "../../domain/canonical";
-import { b64uToBytes, bytesToB64u, concatBytes, randomId, utf8Decode, utf8Encode } from "../../domain/encoding";
+import {
+  b64uToBytes,
+  type Bytes,
+  bytesToB64u,
+  concatBytes,
+  randomId,
+  utf8Decode,
+  utf8Encode,
+} from "../../domain/encoding";
 import { CarryError } from "../../domain/errors";
 import { DURATIONS, LIMITS } from "../../domain/limits";
 import {
@@ -97,6 +105,15 @@ async function buildEnvelope(
   return { envelope, encoded: encodePayload(envelope) };
 }
 
+/** The schema checks only the Base64URL alphabet; non-canonical padding bits are malformed packets. */
+function envelopeBytes(field: string): Bytes {
+  try {
+    return b64uToBytes(field);
+  } catch {
+    throw new CarryError("PACKET_SCHEMA_INVALID");
+  }
+}
+
 export interface OpenedPacket {
   body: MessageBody | AckBody;
   certificate: MemberCertificate;
@@ -119,8 +136,8 @@ export async function openEnvelope(device: Device, env: PacketEnvelope): Promise
   });
 
   const aad = utf8Encode(packetAad(headerOf(env)));
-  const nonce = b64uToBytes(env.nonce);
-  const ciphertext = b64uToBytes(env.ciphertext);
+  const nonce = envelopeBytes(env.nonce);
+  const ciphertext = envelopeBytes(env.ciphertext);
   const certHash = await certificateHash(cert);
   const ok = await verify(
     cert.body.signingPublicJwk,

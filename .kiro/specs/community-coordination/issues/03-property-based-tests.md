@@ -4,14 +4,14 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] fast-check is a dev dependency.
-- [ ] Pure frame rules, with thousands of runs:
+- [x] fast-check is a dev dependency.
+- [x] Pure frame rules, with thousands of runs:
   - any permutation of a packet's frames reassembles the identical payload;
   - inserting duplicate frames anywhere never changes the result.
-- [ ] Multi-device protocol seam: changing any single character of any frame or packet is always rejected, and the message text is never returned.
-- [ ] Multi-device protocol seam: a packet at or past expiry, or at its hop limit, is never imported or relayed.
-- [ ] Multi-device protocol seam: importing the same packet any number of times, through any number of transfers, yields exactly one message.
-- [ ] A failing property reports a shrunk counterexample.
-- [ ] The full unit suite stays under 30 seconds.
+- [x] Multi-device protocol seam: changing any single character of any frame or packet is always rejected, and the message text is never returned.
+- [x] Multi-device protocol seam: a packet at or past expiry, or at its hop limit, is never imported or relayed.
+- [x] Multi-device protocol seam: importing the same packet any number of times, through any number of transfers, yields exactly one message.
+- [x] A failing property reports a shrunk counterexample.
+- [x] The full unit suite stays under 30 seconds.
