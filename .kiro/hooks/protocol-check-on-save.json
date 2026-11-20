@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Protocol check on save",
+      "trigger": "PostFileSave",
+      "description": "Typecheck and run the unit, protocol and golden-vector tests whenever domain or application code is saved.",
+      "matcher": "src[\\\\/](domain|application)[\\\\/].*\\.ts$",
+      "action": {
+        "type": "command",
+        "command": "npm run check",
+        "timeout": 180
+      }
+    }
+  ]
+}

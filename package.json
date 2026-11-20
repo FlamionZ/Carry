@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "test": "vitest --run",
+    "check": "tsc -b && vitest --run",
     "test:e2e": "playwright test",
     "vectors": "vitest run --config vitest.vectors.config.ts",
     "deploy": "npm run build && npm test && wrangler pages deploy --branch main",
