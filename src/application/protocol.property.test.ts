@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { canonicalJson } from "../domain/canonical";
 import { bytesToB64u, utf8Encode } from "../domain/encoding";
 import { CarryError, PROTOCOL_ERROR_CODES } from "../domain/errors";
@@ -160,6 +160,16 @@ function setClock(device: Phone, at: number) {
 }
 
 describe("expiry and hop limit properties (multi-device)", () => {
+  // This suite moves B's and C's clocks up to a day ahead. Later suites reuse
+  // the same phones, so put the clocks back afterwards.
+  const clocks = new Map<Phone, number>();
+  beforeAll(() => {
+    for (const phone of [A, B, C]) clocks.set(phone, phone.now());
+  });
+  afterAll(() => {
+    for (const [phone, at] of clocks) setClock(phone, at);
+  });
+
   const nearExpiry = fc.oneof(
     fc.constantFrom(-1, 0, 1),
     fc.integer({ min: -DURATIONS.messageTtl, max: DURATIONS.messageTtl }),
