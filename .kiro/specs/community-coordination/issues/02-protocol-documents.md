@@ -4,18 +4,18 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `PACKET_PROTOCOL.md` defines the optional message kind in the encrypted body (Announcement, Change, Request; missing means Announcement).
-- [ ] It defines the relay entry: fields, the canonical signed string, the hash chain from the author signature, and size per hop.
-- [ ] It defines the verification rules:
+- [x] `PACKET_PROTOCOL.md` defines the optional message kind in the encrypted body (Announcement, Change, Request; missing means Announcement).
+- [x] It defines the relay entry: fields, the canonical signed string, the hash chain from the author signature, and size per hop.
+- [x] It defines the verification rules:
   - entry count equals `hopCount`, or entries are absent;
   - hop numbers run 1…n;
   - the chain links;
   - signatures of known members verify;
   - unknown members are kept but marked;
   - impossible relay times are flagged, not rejected.
-- [ ] It defines the acknowledgement journey: the copied message entries in the encrypted acknowledgement body, re-verified by the author.
-- [ ] The error-code list gains `RELAY_ENTRY_INVALID`.
-- [ ] The documents state that the fields are additive within v1 and that the v1 golden vectors stay unchanged.
-- [ ] `SECURITY_MODEL.md` adds the residual risks: trailing-entry truncation with a lowered `hopCount`, relay member IDs visible in cleartext, and unverifiable unknown members.
+- [x] It defines the acknowledgement journey: the copied message entries in the encrypted acknowledgement body, re-verified by the author.
+- [x] The error-code list gains `RELAY_ENTRY_INVALID`.
+- [x] The documents state that the fields are additive within v1 and that the v1 golden vectors stay unchanged.
+- [x] `SECURITY_MODEL.md` adds the residual risks: trailing-entry truncation with a lowered `hopCount`, relay member IDs visible in cleartext, and unverifiable unknown members.

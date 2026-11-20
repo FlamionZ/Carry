@@ -3,7 +3,7 @@
 Ticket index for `requirements.md` and `design.md`, in blocking order. Each ticket is one fresh context window; tick a line when its `Status:` becomes `done`.
 
 - [ ] [01 Repo housekeeping and Kiro artefacts](issues/01-repo-housekeeping-and-kiro-artefacts.md) (blocked by: none)
-- [ ] [02 Protocol documents](issues/02-protocol-documents.md) (blocked by: none)
+- [x] [02 Protocol documents](issues/02-protocol-documents.md) (blocked by: none)
 - [ ] [03 Property-based tests for frames and packets](issues/03-property-based-tests.md) (blocked by: none)
 - [ ] [04 Message kinds](issues/04-message-kinds.md) (blocked by: 02)
 - [ ] [05 Status per device](issues/05-status-per-device.md) (blocked by: none)
