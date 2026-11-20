@@ -150,8 +150,8 @@ These follow SECURITY_MODEL.md §6. The protocol has not been independently audi
 
 Dependencies: runtime packages have no known advisories (`npm audit --omit=dev`; CI fails on moderate or higher). `workbox-build`, which vite-plugin-pwa uses at build time, pulls in versions of `glob` and `minimatch` with moderate advisories. They run only during `npm run build` and are not in the app bundle. npm's suggested fix downgrades `workbox-build` below what vite-plugin-pwa 2 requires.
 
-Third-party licenses of everything in the bundle are written to `dist/licenses.txt` and linked from Settings. This project has no license file of its own yet.
+Third-party licenses of everything in the bundle are written to `dist/licenses.txt` and linked from Settings.
 
-## Note on `docs/PRD.md`
+## License
 
-`docs/PRD.md` describes a different product: a coal-blending optimization dashboard for Adaro Site Kelanis. It was not implemented. CARRY is built from the other six documents in `docs/`.
+CARRY is released under the [MIT License](LICENSE). Copyright (c) 2026 Rakha Abimanyu (FlamionZ).

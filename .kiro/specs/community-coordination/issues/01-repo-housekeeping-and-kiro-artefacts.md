@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] An MIT licence is in the repository root and named in `package.json`.
-- [ ] The unrelated coal-blending PRD is removed from `docs/`, and steering no longer has to warn about it.
-- [ ] A Kiro agent hook runs the typecheck and the unit tests when a domain or application file is saved.
-- [ ] A Protocol Engineer custom agent works from `PACKET_PROTOCOL.md`, the golden vectors, `GLOSSARY.md` and the ADRs.
-- [ ] A Security Reviewer custom agent reviews changes against `SECURITY_MODEL.md` and the protocol steering rules.
-- [ ] `.kiro/` is committed in full and not ignored.
+- [x] An MIT licence is in the repository root and named in `package.json`.
+- [x] The unrelated coal-blending PRD is removed from `docs/`, and steering no longer has to warn about it.
+- [x] A Kiro agent hook runs the typecheck and the unit tests when a domain or application file is saved.
+- [x] A Protocol Engineer custom agent works from `PACKET_PROTOCOL.md`, the golden vectors, `GLOSSARY.md` and the ADRs.
+- [x] A Security Reviewer custom agent reviews changes against `SECURITY_MODEL.md` and the protocol steering rules.
+- [x] `.kiro/` is committed in full and not ignored.

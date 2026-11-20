@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "description": "CARRY — offline-first private community messages carried by QR handoffs.",
+  "license": "MIT",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
