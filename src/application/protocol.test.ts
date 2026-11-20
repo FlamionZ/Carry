@@ -579,3 +579,125 @@ describe("relay entries (3 devices, no network)", () => {
     expect((decodePayload(payload) as PacketEnvelope).relay.hopCount).toBeLessThan(5);
   });
 });
+
+// ── Acknowledgement journey (PACKET_PROTOCOL.md §10) ──────────────────────
+
+describe("acknowledgement journey (3 devices, no network)", () => {
+  /** Fresh phones: A → B → C, then C acknowledges. */
+  async function acknowledgedViaSam() {
+    const { A, B, C, community } = await setup();
+    await enroll(A, B, community.id, "Sam");
+    await enroll(A, C, community.id, "Chris");
+    const msg = await composeMessage(A, community.id, "Water point moved to the library steps.");
+    await transfer(B, await preparePacketForQr(A, msg.id));
+    B.advance(60_000);
+    await transfer(C, await preparePacketForQr(B, msg.id));
+    return { A, B, C, community, msg };
+  }
+
+  it("A → B → C, C acknowledges, the ACK returns C → B → A: on A both journeys are verified", async () => {
+    const { A, B, C, msg } = await acknowledgedViaSam();
+    const samId = await memberIdOf(B);
+    const chrisId = await memberIdOf(C);
+    const storedAtC = decodePayload((await C.db.packets.get(msg.id))!.encodedEnvelope) as PacketEnvelope;
+
+    C.advance(60_000);
+    const ack = await createAcknowledgement(C, msg.id);
+    const ackFromC = await preparePacketForQr(C, ack.id);
+    // The copy travels inside the ciphertext: no relay signature is readable on the ACK.
+    expect(utf8Decode(b64uToBytes(ackFromC))).not.toContain(storedAtC.relay.entries![0]!.sig);
+    await transfer(B, ackFromC);
+    B.advance(60_000);
+    const ackFromB = decodePayload(await preparePacketForQr(B, ack.id)) as PacketEnvelope;
+    expect(ackFromB.relay.entries?.map((e) => e.memberId)).toEqual([samId]);
+
+    await expect(transfer(A, encodePayload(ackFromB))).resolves.toMatchObject({ kind: "ACK", acknowledgedOwn: true });
+    const view = await readPacket(A, msg.id);
+    expect(view.statusLabel).toBe("Acknowledged");
+    expect(view.acknowledgements).toHaveLength(1);
+    const [returned] = view.acknowledgements!;
+    expect(returned).toMatchObject({ acknowledgedBy: chrisId, acknowledgedByName: "Chris" });
+    // Out: exactly the entries C stored on import, re-verified on A against A's own message.
+    expect(returned!.outbound).toEqual({
+      hopCount: 1,
+      recorded: true,
+      hops: [
+        {
+          hop: 1,
+          memberId: samId,
+          at: storedAtC.relay.entries![0]!.at,
+          status: "VERIFIED",
+          displayName: "Sam",
+          flags: [],
+        },
+      ],
+    });
+    // Back: the ACK's own entries, signed over the ACK's packet ID.
+    expect(returned!.back).toEqual({
+      hopCount: 1,
+      recorded: true,
+      hops: [{ hop: 1, memberId: samId, at: B.now(), status: "VERIFIED", displayName: "Sam", flags: [] }],
+    });
+  });
+
+  it("the author rejects a forged or mismatched copied journey; relays carry it unchecked", async () => {
+    const { A, B, C, community, msg } = await acknowledgedViaSam();
+    const stored = decodePayload((await C.db.packets.get(msg.id))!.encodedEnvelope) as PacketEnvelope;
+    const [e1] = stored.relay.entries!;
+    // Sam's entry for a different message, which reached C the same way.
+    const other = await composeMessage(A, community.id, "Second message.");
+    await transfer(B, await preparePacketForQr(A, other.id));
+    await transfer(C, await preparePacketForQr(B, other.id));
+    const [otherEntry] = (decodePayload((await C.db.packets.get(other.id))!.encodedEnvelope) as PacketEnvelope).relay
+      .entries!;
+
+    /** C (a dishonest member) acknowledges after rewriting its stored copy; B carries the ACK to A. */
+    async function ackWithCopiedRelay(relay: PacketEnvelope["relay"]) {
+      await C.db.packets.update(msg.id, { encodedEnvelope: encodePayload({ ...stored, relay }) });
+      await C.db.packets.where("originalPacketId").equals(stored.packetId).delete();
+      const ack = await createAcknowledgement(C, msg.id);
+      await expect(transfer(B, await preparePacketForQr(C, ack.id))).resolves.toMatchObject({ kind: "ACK" });
+      return preparePacketForQr(B, ack.id);
+    }
+
+    const variants: Record<string, PacketEnvelope["relay"]> = {
+      "relay time altered": { hopCount: 1, entries: [{ ...e1!, at: e1!.at + 1 }] },
+      "entry copied from another message": { hopCount: 1, entries: [otherEntry!] },
+      "signature from another message": { hopCount: 1, entries: [{ ...e1!, sig: otherEntry!.sig }] },
+      "fewer entries than hopCount": { hopCount: 2, entries: [e1!] },
+      "entries on a message never relayed": { hopCount: 0, entries: [e1!] },
+      "hop renumbered": { hopCount: 1, entries: [{ ...e1!, hop: 2 }] },
+    };
+    const before = await A.db.packets.count();
+    for (const [name, relay] of Object.entries(variants)) {
+      await expect(transfer(A, await ackWithCopiedRelay(relay)), name).rejects.toMatchObject({
+        code: "RELAY_ENTRY_INVALID",
+      });
+    }
+    expect(await A.db.packets.count()).toBe(before);
+    expect(await A.db.acknowledgements.count()).toBe(0);
+    expect((await readPacket(A, msg.id)).statusLabel).not.toBe("Acknowledged");
+
+    // The honest copy is accepted by the same author.
+    await expect(transfer(A, await ackWithCopiedRelay(stored.relay))).resolves.toMatchObject({
+      kind: "ACK",
+      acknowledgedOwn: true,
+    });
+    expect((await readPacket(A, msg.id)).acknowledgements?.[0]?.outbound?.hops[0]?.status).toBe("VERIFIED");
+  });
+
+  it("an ACK copying an unrecorded journey is accepted and says so", async () => {
+    const { A, B, C, msg } = await acknowledgedViaSam();
+    const stored = decodePayload((await C.db.packets.get(msg.id))!.encodedEnvelope) as PacketEnvelope;
+    // As if an older build had relayed the message to C: entries stripped.
+    await C.db.packets.update(msg.id, { encodedEnvelope: encodePayload({ ...stored, relay: { hopCount: 1 } }) });
+    const ack = await createAcknowledgement(C, msg.id);
+    await transfer(B, await preparePacketForQr(C, ack.id));
+    await transfer(A, await preparePacketForQr(B, ack.id));
+    expect((await readPacket(A, msg.id)).acknowledgements?.[0]?.outbound).toEqual({
+      hopCount: 1,
+      recorded: false,
+      hops: [],
+    });
+  });
+});

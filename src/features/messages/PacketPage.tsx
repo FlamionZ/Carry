@@ -19,7 +19,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { packetRecordId, statusLabel } from "../../domain/packet/rules";
 import { useFrames } from "../packet-transfer/useFrames";
 import { ackSummary } from "./PacketRow";
-import { RelayJourneySection } from "./RelayJourney";
+import { AcknowledgementJourneys, RelayJourneySection } from "./RelayJourney";
 
 const SHARE_BLOCKED = {
   EXPIRED: "This packet has expired. Expired packets cannot be shown or relayed.",
@@ -104,8 +104,9 @@ function PacketPage({ recordId }: { recordId: string }) {
   const myAck = (acks ?? []).find((a) => a.acknowledgedBy === myId);
   const returnedAcks = (acks ?? []).filter((a) => a.receivedAt !== null);
   const carriedAcks = (acks ?? []).filter((a) => a.acknowledgedBy !== myId && a.receivedAt === null);
+  const ackRecordId = (ackPacketId: string) => packetRecordId(record.communityId, ackPacketId);
   const ackLink = (ackPacketId: string, showQr = false) =>
-    `/p/${encodeURIComponent(packetRecordId(record.communityId, ackPacketId))}${showQr ? "?show=1" : ""}`;
+    `/p/${encodeURIComponent(ackRecordId(ackPacketId))}${showQr ? "?show=1" : ""}`;
   const now = device.now();
 
   const qrLabel = !outbound
@@ -169,23 +170,35 @@ function PacketPage({ recordId }: { recordId: string }) {
           authorName={view.senderName}
           createdAt={record.createdAt}
           scannedAt={record.firstSeenAt}
+          writtenWhat={isMessage ? "the message" : "the acknowledgement"}
         />
       )}
 
       {isMessage && outbound && (
-        <section className="card space-y-2">
-          <h2 className="text-base">Acknowledgements</h2>
+        <section className="card space-y-2" aria-labelledby="acknowledgements-heading">
+          <h2 id="acknowledgements-heading" className="text-base">
+            Acknowledgements
+          </h2>
           {returnedAcks.length === 0 ? (
             <p className="text-sm muted">
               None yet. An acknowledgement has to be carried back to this device and scanned before it appears here.
             </p>
           ) : (
-            <ul className="space-y-1 text-sm">
+            <ul className="space-y-4 text-sm">
               {returnedAcks.map((a) => (
-                <li key={a.id} className="flex flex-wrap items-center gap-x-2">
-                  <CheckCheck size={16} className="text-teal-dark" aria-hidden="true" />
-                  <span className="font-semibold">{a.acknowledgedByName}</span>
-                  <span className="muted">· scanned {formatTime(a.receivedAt!)}</span>
+                <li key={a.id} className="space-y-3">
+                  <p className="flex flex-wrap items-center gap-x-2">
+                    <CheckCheck size={16} className="text-teal-dark" aria-hidden="true" />
+                    <span className="font-semibold">{a.acknowledgedByName}</span>
+                    <span className="muted">· scanned {formatTime(a.receivedAt!)}</span>
+                  </p>
+                  {view && (
+                    <AcknowledgementJourneys
+                      returned={view.acknowledgements?.find((r) => r.ackRecordId === ackRecordId(a.ackPacketId))}
+                      authorName={view.senderName}
+                      messageCreatedAt={record.createdAt}
+                    />
+                  )}
                 </li>
               ))}
             </ul>

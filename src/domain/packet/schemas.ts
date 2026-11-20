@@ -114,6 +114,12 @@ export type MessageBody = z.infer<typeof messageBodySchema>;
 export const ackBodySchema = z.object({
   originalPacketId: id16,
   ackStatus: z.literal("RECEIVED"),
+  /**
+   * The acknowledged message's relay section as the acknowledging device
+   * stored it (PACKET_PROTOCOL.md §10). Absent from older builds, or when
+   * omitted to stay within the payload limit.
+   */
+  messageRelay: relaySectionSchema.optional(),
 });
 export type AckBody = z.infer<typeof ackBodySchema>;
 
