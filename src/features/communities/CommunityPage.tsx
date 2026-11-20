@@ -8,8 +8,9 @@ import { formatTime } from "../../app/useAction";
 import { PageHeader } from "../../components/AppShell";
 import type { JoinRequestRecord } from "../../infrastructure/db/db";
 import { PacketRow } from "../messages/PacketRow";
+import { LedgerTab } from "./LedgerTab";
 
-type Tab = "messages" | "relay" | "members";
+type Tab = "messages" | "relay" | "ledger" | "members";
 
 const REQUEST_STATUS: Record<JoinRequestRecord["status"], string> = {
   PENDING: "Waiting for your review",
@@ -67,6 +68,7 @@ export function CommunityPage() {
   const tabs: { id: Tab; label: string; badge: number; badgeLabel: string }[] = [
     { id: "messages", label: "Messages", badge: 0, badgeLabel: "" },
     { id: "relay", label: "Relay", badge: relayQueue.length, badgeLabel: "packets to pass along" },
+    { id: "ledger", label: "Ledger", badge: 0, badgeLabel: "" },
     { id: "members", label: "Members", badge: isAdmin ? pendingCount : 0, badgeLabel: "join requests to review" },
   ];
 
@@ -146,6 +148,8 @@ export function CommunityPage() {
           ))}
         </section>
       )}
+
+      {tab === "ledger" && <LedgerTab communityId={communityId} packets={packets} />}
 
       {tab === "members" && (
         <section className="space-y-5" role="tabpanel" id="panel-members" aria-labelledby="tab-members">

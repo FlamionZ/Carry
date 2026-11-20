@@ -91,6 +91,24 @@ test("three phones: join, relay, acknowledgement, integrity checks, offline shel
   await expect(back.getByText("Verified", { exact: true })).toHaveCount(1);
   await expect(returned.getByText("Unknown member on this device")).toHaveCount(0);
 
+  // The Ledger on A lists the Change with its acknowledgement count and both journeys.
+  await openCommunity(A.page);
+  await A.page.getByRole("tab", { name: "Ledger" }).click();
+  const ledger = A.page.getByRole("tabpanel", { name: "Ledger" });
+  const entry = ledger.getByRole("link", { name: new RegExp(text) });
+  await expect(entry.getByText("Change", { exact: true })).toBeVisible();
+  await expect(entry.getByText("Acknowledged", { exact: true })).toBeVisible();
+  await expect(entry.getByText("1 member acknowledged", { exact: true })).toBeVisible();
+  await expect(entry.getByText("You → Sam → Chris", { exact: true })).toBeVisible();
+  await expect(entry.getByText("Chris → Sam → you", { exact: true })).toBeVisible();
+  await entry.click();
+  const timeline = A.page.getByRole("region", { name: "Timeline" });
+  await expect(timeline.getByText("Created on this device")).toBeVisible();
+  await expect(timeline.getByText("Shown: first displayed as QR frames")).toBeVisible();
+  await expect(timeline.getByText(/^Acknowledged by Chris/)).toBeVisible();
+  await expect(A.page.getByRole("region", { name: "Message journey to Chris" })).toBeVisible();
+  await expect(A.page.getByRole("region", { name: "Acknowledgement journey back from Chris" })).toBeVisible();
+
   // Scene 5b/c: corrupted frame and expired packet fixtures are rejected.
   await A.page.goto("/settings");
   await A.page.getByRole("button", { name: "Corrupted frame" }).click();

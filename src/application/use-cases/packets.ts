@@ -531,6 +531,29 @@ export interface PacketView {
   journey?: RelayJourney;
   /** The author's own MESSAGE only: each acknowledgement scanned on this device, oldest first. */
   acknowledgements?: ReturnedAcknowledgement[];
+  /** The author's own MESSAGE only: what this device observed, in time order. */
+  timeline?: TimelineEvent[];
+}
+
+/** One thing this device observed about its own message (Ledger timeline). */
+export type TimelineEvent =
+  | { event: "CREATED"; at: number }
+  | { event: "SHOWN"; at: number }
+  | { event: "ACKNOWLEDGED"; at: number; memberId: string; displayName: string }
+  | { event: "EXPIRED"; at: number };
+
+/**
+ * Created, first Shown, each acknowledgement at the time this device scanned
+ * it, then Expired once the expiry time has passed on this device.
+ */
+function messageTimeline(record: PacketRecord, acks: ReturnedAcknowledgement[], now: number): TimelineEvent[] {
+  const events: TimelineEvent[] = [{ event: "CREATED", at: record.createdAt }];
+  if (record.firstShownAt !== undefined) events.push({ event: "SHOWN", at: record.firstShownAt });
+  for (const a of acks) {
+    events.push({ event: "ACKNOWLEDGED", at: a.receivedAt, memberId: a.acknowledgedBy, displayName: a.acknowledgedByName });
+  }
+  if (now >= record.expiresAt) events.push({ event: "EXPIRED", at: record.expiresAt });
+  return events;
 }
 
 /** An acknowledgement that came back to the author, with both journeys (§10). */
@@ -629,6 +652,7 @@ export async function readPacket(device: Device, recordId: string): Promise<Pack
     view.journey = await describeRelayJourney(device, envelope, envelope.relay, record.firstSeenAt);
   } else if (envelope.type === "MESSAGE") {
     view.acknowledgements = await describeReturnedAcknowledgements(device, envelope);
+    view.timeline = messageTimeline(record, view.acknowledgements, now);
   }
   return view;
 }
