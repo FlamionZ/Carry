@@ -134,7 +134,7 @@ This table exists on the joining device only, so the per-request ephemeral ECDH 
 | `packetType` | `MESSAGE \| ACK` | MVP packet type |
 | `encodedEnvelope` | string | Base64URL of canonical UTF-8 JSON envelope; encrypted content only |
 | `direction` | `OUTBOUND \| INBOUND` | Local perspective |
-| `status` | `READY \| IMPORTED \| RELAYED \| ACKNOWLEDGED \| EXPIRED \| REJECTED` | Local status |
+| `status` | `READY \| IMPORTED \| RELAYED \| ACKNOWLEDGED \| EXPIRED` | Local status. Packets that fail verification are rejected at scan time and never stored, so there is no rejected status |
 | `hopCount` | number | Mutable relay hint |
 | `createdAt` | number | Signed timestamp |
 | `expiresAt` | number | Signed expiry |

@@ -12,11 +12,11 @@ Live: **https://carry-beu.pages.dev**. The specification lives in [`docs/`](docs
 ## Features
 
 - **Message kinds.** The author marks each message as an Announcement, a Change (a new time or place) or a Request. Members see the kind as an icon and a text label. The kind is inside the ciphertext, so someone photographing a QR does not learn it. Messages from older builds without a kind read as Announcements.
-- **Signed relay entries.** Each relay adds a signed entry to the packet's relay section ([ADR-0001](docs/adr/0001-signed-relay-entries.md), PACKET_PROTOCOL.md §11A). Entries are hash-chained and must match the hop count, so altered, reordered or removed entries are rejected. The ciphertext and the author's signature stay unchanged, and relays never decrypt.
+- **Signed relay entries.** Each relay adds a signed entry to the packet's relay section ([ADR-0001](docs/adr/0001-signed-relay-entries.md), PACKET_PROTOCOL.md §11A). Entries are hash-chained and must match the hop count, so altered or reordered entries, and entries removed from the middle, are rejected. A relay can still cut off trailing entries while lowering the hop count; this is the documented residual risk (SECURITY_MODEL.md §5A). The ciphertext and the author's signature stay unchanged, and relays never decrypt.
 - **Relay journey.** A received message shows who carried it, in hop order: for example "Alex → Sam → you". Hops from members this device has no certificate for read "Unknown member on this device" and are never shown as verified. A packet from an older build without entries shows an unrecorded journey with only its hop count.
 - **Journey back to the author.** An acknowledgement carries a copy of the message's journey, plus its own relay entries. The author sees both the way out and the way back, verified on their own device.
-- **Ledger.** A tab in each community lists the author's own messages with kind, status, the number of members who acknowledged, and both journeys. Each entry opens a timeline of what this device observed.
-- **Status per device.** Status words describe only what this device has seen: Created, Shown, Received, Shown for relay, Acknowledged, Expired, Rejected. CARRY never says "delivered". "Acknowledged" (the only teal status) appears only after an acknowledgement is scanned on the author's device.
+- **Ledger.** A tab in each community lists the author's own messages with kind, status, the number of members who acknowledged (for a Request: "N members confirmed"), and both journeys. Each entry opens a timeline of what this device observed.
+- **Status per device.** Status words describe only what this device has seen: Created, Shown, Received, Shown for relay, Acknowledged, Expired. A packet that fails verification is rejected at scan time with an error message and code, and is never stored. CARRY never says "delivered". "Acknowledged" (the only teal status) appears only after an acknowledgement is scanned on the author's device.
 
 ## Quick start
 
@@ -30,7 +30,8 @@ npm run check      # type-check, then npm test
 npm run build      # type-check, then production build in dist/
 npm run test:e2e   # browser tests against dist/ (build first)
 npm run icons      # regenerate PNG icons from the logo geometry
-npm run vectors    # write golden vectors; refuses to overwrite them (new protocol versions only)
+npm run vectors        # write carry-v1.json; fails with a refusal if it exists (new protocol versions only)
+npm run vectors:relay  # write carry-v1-relay.json; same refusal
 ```
 
 The first browser-test run needs the browsers: `npx playwright install chromium webkit firefox`.
@@ -98,10 +99,10 @@ Scanner fallbacks: upload a QR image, or paste frame text (each QR display has a
 
 Step-by-step manual checks for judges are in [`TESTING.md`](TESTING.md).
 
-- `npm test`: 101 Vitest tests in 6 files.
+- `npm test`: 102 Vitest tests in 6 files.
   - `src/domain/domain.test.ts` (24): encoding, frames, schemas and relay rules.
   - `src/application/protocol.test.ts` (30): a three-device protocol run on IndexedDB (fake-indexeddb) with real Web Crypto keys. It covers join, message kinds, relay with signed relay entries, the relay journey, ACK and the journey back, the Ledger, duplicates, corrupted and conflicting frames, tampered packets, expiry, single-use invitations and approvals meant for another device.
-  - Property-based tests with fast-check (7 properties). `src/domain/frames.property.test.ts` (2): any order of frames, and duplicate frames anywhere, reassemble the identical payload. `src/application/protocol.property.test.ts` (5): any single-character change to a frame or a signed packet is rejected without showing the text; expired or hop-limited packets are never imported or relayed; repeated imports yield one message; altered, reordered or removed relay entries are rejected.
+  - Property-based tests with fast-check (8 properties). `src/domain/frames.property.test.ts` (2): any order of frames, and duplicate frames anywhere, reassemble the identical payload. `src/application/protocol.property.test.ts` (6): any single-character change to a frame or a signed packet is rejected without showing the text; expired or hop-limited packets are never imported or relayed; repeated imports yield one message; altered, reordered or middle-removed relay entries, and any single-character change inside a relay entry, are rejected.
   - Golden vectors (PACKET_PROTOCOL.md §14), `src/application/vectors.test.ts` (27): `src/test/vectors/carry-v1.json` holds an invitation, join request, approval, message (as frames and relayed), ACK and member message, plus 19 invalid inputs with their expected error codes. Each receiving device is rebuilt from the file and must accept or reject the frozen bytes exactly. A deliberately changed AAD separator made the four packet vectors fail, so they pin the wire format. Never edit or regenerate this file for protocol v1.
   - Relay entry golden vectors, `src/application/vectors-relay.test.ts` (13): `src/test/vectors/carry-v1-relay.json` holds a message with a kind relayed once and twice, and an ACK with the copied journey relayed once and twice, plus 6 invalid cases (entry count, hop order, broken chain, altered signatures, forged copied journey). It is frozen in the same way.
 - `npm run test:e2e`: 4 Playwright tests against the production build and its response headers, in Chromium (Pixel 7 profile), WebKit (iPhone 14 profile) and Firefox. Each phone is a separate browser context. Any request outside the app origin, console or page error, or CSP violation fails the test.

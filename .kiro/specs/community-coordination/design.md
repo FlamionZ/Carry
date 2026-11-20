@@ -125,6 +125,17 @@ It is generated once by the existing generator approach and verified by the same
 
 It must stay free of console errors, CSP violations and external requests on all three engines.
 
+## Decisions during implementation
+
+Made by the project owner during the code review.
+
+- **Request copy (story 8).** For a Request, the acknowledgement count reads "N member(s) confirmed" in the Ledger row and under the Acknowledgements heading on the packet page. Other kinds read "N member(s) acknowledged". The status word stays Acknowledged.
+- **No Rejected status.** A packet that fails verification is rejected at scan time and never stored; the scan page's error notice (message and code) is the rejection UI. The stored and displayed status sets have no rejected value. No stored record ever had one, so no migration is needed.
+- **Expired timeline event.** The Ledger timeline ends with Expired once the message's expiry has passed on this device.
+- **"Signature does not verify" journey marker.** Import rejects a packet whose known relay signature fails. The marker appears only when reading a stored packet after this device later learned a relay's certificate and that entry's stored signature does not verify.
+- **Envelope padding fix.** A nonce or ciphertext with non-canonical Base64URL padding bits is rejected with the protocol code `PACKET_SCHEMA_INVALID` instead of an uncoded error (found by the property tests, ticket 03).
+- **Vector generators.** Each golden-vector generator runs only when targeted (`npm run vectors` for `carry-v1.json`, `npm run vectors:relay` for `carry-v1-relay.json`) and fails with a refusal message if its own file exists, so one existing file never blocks the other.
+
 ## Out of Scope
 
 - Any transport other than QR: Bluetooth, NFC, Wi-Fi, automatic mesh.

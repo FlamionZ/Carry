@@ -1,12 +1,12 @@
 /**
  * Writes the CARRY/1 relay entry golden vectors (PACKET_PROTOCOL.md §5, §10,
  * §11A, §14) by running the real protocol flows between five simulated
- * devices. Run with `npm run vectors`.
+ * devices. Run with `npm run vectors:relay`.
  *
  * The committed file is frozen exactly like carry-v1.json: it proves that new
  * builds still read the relay entries, message kinds and acknowledgement
- * journeys this build writes. The script never overwrites an existing file
- * and never touches carry-v1.json. Delete the file only when introducing a new
+ * journeys this build writes. The script refuses to overwrite an existing
+ * file (the run fails with a refusal message) and never touches carry-v1.json. Delete the file only when introducing a new
  * protocol version.
  */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -68,7 +68,9 @@ async function relay(phone: Phone, payload: string, recordId: string, ms: number
   return preparePacketForQr(phone, recordId);
 }
 
-test.skipIf(existsSync(OUT))("generate CARRY/1 relay entry golden vectors", async () => {
+// Fails with the refusal below when the file exists. `npm run vectors:relay`
+// runs only this generator, so carry-v1.json existing does not matter here.
+test("generate CARRY/1 relay entry golden vectors", async () => {
   if (existsSync(OUT)) {
     throw new Error(`${OUT} exists. Golden vectors must not change; delete it only for a new protocol version.`);
   }
