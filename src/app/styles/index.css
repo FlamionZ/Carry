@@ -2,22 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Role tokens as RGB channels (Tailwind v3 `<alpha-value>` pattern).
+ * :root is Kiroween night, the default (ADR-0002, BRAND_GUIDELINES §12);
+ * [data-theme="light"] restores the original light brand.
+ */
 :root {
-  --carry-forest: #163a35;
-  --carry-teal: #2aa58f;
-  --carry-amber: #f1b45b;
-  --carry-paper: #f4f2ea;
-  --carry-ink: #14201e;
-  --carry-sage: #81918a;
-  --carry-white: #ffffff;
-  --carry-alert: #c94c4c;
-  /* Focus ring: ≥ 3:1 against white and paper. Brand teal is only 2.7:1 on paper. */
-  --carry-focus: #1a7060;
+  --carry-canvas: 15 21 19; /* #0F1513 */
+  --carry-surface: 24 33 30; /* #18211E */
+  --carry-fg: 237 235 227; /* #EDEBE3 */
+  --carry-muted: 169 181 175; /* #A9B5AF */
+  --carry-line: 129 145 138; /* #81918A */
+  --carry-accent: 143 211 192; /* #8FD3C0 */
+  --carry-brand: 10 15 14; /* #0A0F0E */
+  --carry-on-brand: 244 242 234; /* #F4F2EA */
+  --carry-primary: 61 191 166; /* #3DBFA6 */
+  --carry-on-primary: 11 21 18; /* #0B1512 */
+  --carry-signal: 241 180 91; /* #F1B45B, pumpkin */
+  --carry-on-signal: 20 32 30; /* #14201E */
+  --carry-signal-fg: 245 199 126; /* #F5C77E */
+  --carry-ack: 95 209 184; /* #5FD1B8 */
+  --carry-danger: 232 122 122; /* #E87A7A */
+  --carry-on-danger: 20 32 30; /* #14201E */
+  --carry-danger-fg: 240 138 138; /* #F08A8A */
+  --carry-focus: 241 180 91; /* pumpkin ring on dark */
   --carry-radius-card: 16px;
   --carry-radius-control: 10px;
   --carry-font-display: "Manrope", "Avenir Next", system-ui, sans-serif;
   --carry-font-body: "Inter", system-ui, sans-serif;
   --carry-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --carry-canvas: 244 242 234; /* #F4F2EA */
+  --carry-surface: 255 255 255;
+  --carry-fg: 20 32 30; /* #14201E */
+  --carry-muted: 85 99 93; /* #55635D */
+  --carry-line: 129 145 138;
+  --carry-accent: 22 58 53; /* #163A35 */
+  --carry-brand: 22 58 53;
+  --carry-on-brand: 255 255 255;
+  --carry-primary: 26 112 96; /* #1A7060 */
+  --carry-on-primary: 255 255 255;
+  --carry-signal: 241 180 91;
+  --carry-on-signal: 20 32 30;
+  --carry-signal-fg: 138 90 18; /* #8A5A12 */
+  --carry-ack: 26 112 96;
+  --carry-danger: 201 76 76; /* #C94C4C */
+  --carry-on-danger: 255 255 255;
+  --carry-danger-fg: 163 58 58; /* #A33A3A */
+  /* Focus ring: ≥ 3:1 against white and paper. */
+  --carry-focus: 26 112 96;
   color-scheme: light;
 }
 
@@ -27,8 +63,8 @@
   }
   body {
     font-family: var(--carry-font-body);
-    background: var(--carry-paper);
-    color: var(--carry-ink);
+    background: rgb(var(--carry-canvas));
+    color: rgb(var(--carry-fg));
     min-height: 100dvh;
   }
   h1,
@@ -39,50 +75,68 @@
     letter-spacing: -0.01em;
   }
   :focus-visible {
-    outline: 3px solid var(--carry-focus);
+    outline: 3px solid rgb(var(--carry-focus));
     outline-offset: 2px;
   }
-  /* On the dark header and camera panel the ring switches to paper. */
-  .bg-forest :focus-visible,
-  .bg-ink :focus-visible {
-    outline-color: var(--carry-paper);
+  /* In the light theme the ring switches to white on the dark header and camera panel. */
+  [data-theme="light"] .bg-brand :focus-visible,
+  .bg-black :focus-visible {
+    outline-color: rgb(var(--carry-on-brand));
   }
 }
 
 @layer components {
   .card {
-    @apply rounded-card border border-black/10 bg-white p-4 sm:p-5;
+    @apply rounded-card border border-line/30 bg-surface p-4 sm:p-5;
   }
   .btn {
     @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-control px-4 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
   }
-  /* Teal-dark keeps white text at WCAG AA contrast. */
   .btn-primary {
-    @apply btn bg-teal-dark text-white hover:bg-forest;
+    @apply btn bg-primary text-on-primary hover:brightness-110;
   }
   .btn-secondary {
-    @apply btn border border-forest/30 bg-white text-forest hover:bg-paper;
+    @apply btn border border-accent/40 bg-surface text-accent hover:bg-canvas;
   }
   .btn-attention {
-    @apply btn bg-amber text-ink hover:brightness-95;
+    @apply btn bg-signal text-on-signal hover:brightness-95;
   }
   .btn-danger {
-    @apply btn bg-alert text-white hover:brightness-95;
+    @apply btn bg-danger text-on-danger hover:brightness-95;
   }
   .btn-ghost {
-    @apply btn text-forest hover:bg-forest/5;
+    @apply btn text-accent hover:bg-accent/10;
   }
   .input {
-    @apply min-h-12 w-full rounded-control border border-sage bg-white px-3 text-base text-ink placeholder:text-sage-dark;
+    @apply min-h-12 w-full rounded-control border border-line bg-surface px-3 text-base text-fg placeholder:text-muted;
   }
   .label {
-    @apply mb-1 block text-sm font-semibold text-ink;
+    @apply mb-1 block text-sm font-semibold text-fg;
   }
   .muted {
-    @apply text-sage-dark;
+    @apply text-muted;
   }
   .mono {
     font-family: var(--carry-font-mono);
+  }
+  /* The lantern: a warm glow on the relay path (BRAND §12). Still under reduced motion. */
+  .lantern-glow {
+    filter: drop-shadow(0 0 6px rgb(var(--carry-signal) / 0.55));
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .lantern-glow {
+      animation: lantern-flicker 3.2s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes lantern-flicker {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 5px rgb(var(--carry-signal) / 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 9px rgb(var(--carry-signal) / 0.7));
   }
 }
 

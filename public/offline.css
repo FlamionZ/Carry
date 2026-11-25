@@ -1,0 +1,4 @@
+/* Separate file: the production CSP (style-src 'self') blocks inline styles. Kiroween night palette. */
+body { margin: 0; font-family: system-ui, sans-serif; background: #0f1513; color: #edebe3; }
+main { max-width: 28rem; margin: 15vh auto; padding: 1.5rem; }
+h1 { color: #8fd3c0; }

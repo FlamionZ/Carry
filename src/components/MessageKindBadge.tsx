@@ -13,7 +13,7 @@ export const MESSAGE_KIND_UI: Record<MessageKind, { label: string; hint: string;
 export function MessageKindBadge({ kind }: { kind: MessageKind }) {
   const { label, Icon } = MESSAGE_KIND_UI[kind];
   return (
-    <Badge Icon={Icon} tone="border border-forest/30 bg-white text-forest">
+    <Badge Icon={Icon} tone="border border-forest/30 bg-surface text-accent">
       {label}
     </Badge>
   );

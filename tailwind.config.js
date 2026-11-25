@@ -1,18 +1,42 @@
 /** @type {import('tailwindcss').Config} */
+
+// Role tokens are CSS variables holding RGB channels (src/app/styles/index.css),
+// so the Kiroween night and light themes share every class (ADR-0002, BRAND §12).
+const role = (name) => `rgb(var(--carry-${name}) / <alpha-value>)`;
+
 export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        // Brand tokens: BRAND_GUIDELINES.md §11. The `dark` shades are derived for
-        // WCAG AA text contrast (≥ 4.5:1 on white, paper and their own 15% tints).
-        forest: "#163A35",
-        teal: { DEFAULT: "#2AA58F", dark: "#1A7060" },
-        amber: { DEFAULT: "#F1B45B", dark: "#8A5A12" },
-        paper: "#F4F2EA",
-        ink: "#14201E",
-        sage: { DEFAULT: "#81918A", dark: "#55635D" },
-        alert: { DEFAULT: "#C94C4C", dark: "#A33A3A" },
+        // Theme-dependent roles.
+        canvas: role("canvas"),
+        surface: role("surface"),
+        fg: role("fg"),
+        muted: role("muted"),
+        line: role("line"),
+        accent: role("accent"),
+        brand: role("brand"),
+        "on-brand": role("on-brand"),
+        primary: role("primary"),
+        "on-primary": role("on-primary"),
+        signal: role("signal"),
+        "on-signal": role("on-signal"),
+        "signal-fg": role("signal-fg"),
+        ack: role("ack"),
+        danger: role("danger"),
+        "on-danger": role("on-danger"),
+        "danger-fg": role("danger-fg"),
+        // Legacy names mapped onto roles, so existing classes follow the theme.
+        paper: role("canvas"),
+        ink: role("fg"),
+        forest: role("accent"),
+        sage: { DEFAULT: role("line"), dark: role("muted") },
+        amber: { DEFAULT: role("signal"), dark: role("signal-fg") },
+        alert: { DEFAULT: role("danger"), dark: role("danger-fg") },
+        // Bright teal is fixed in both themes (chips, QR progress dots) and always
+        // carries dark text; teal-dark is the Acknowledged text colour.
+        teal: { DEFAULT: "#2AA58F", dark: role("ack") },
       },
       fontFamily: {
         display: ["Manrope", "Avenir Next", "system-ui", "sans-serif"],

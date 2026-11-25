@@ -104,13 +104,13 @@ export function CommunityPage() {
             aria-selected={tab === t.id}
             aria-controls={`panel-${t.id}`}
             className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-control text-sm font-semibold ${
-              tab === t.id ? "bg-white text-forest shadow-sm" : "text-sage-dark"
+              tab === t.id ? "bg-surface text-accent shadow-sm" : "text-sage-dark"
             }`}
             onClick={() => setTab(t.id)}
           >
             {t.label}
             {t.badge > 0 && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber px-1.5 text-xs text-ink">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-signal px-1.5 text-xs text-on-signal">
                 {t.badge}
                 <span className="sr-only"> {t.badgeLabel}</span>
               </span>

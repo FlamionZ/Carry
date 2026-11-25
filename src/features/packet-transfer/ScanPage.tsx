@@ -128,7 +128,7 @@ export function ScanPage() {
               <span
                 key={i}
                 className={`flex h-8 flex-1 items-center justify-center rounded-control text-xs font-semibold ${
-                  progress.received.includes(i) ? "bg-teal text-ink" : "bg-sage/20 text-sage-dark"
+                  progress.received.includes(i) ? "bg-teal text-on-signal" : "bg-sage/20 text-sage-dark"
                 }`}
               >
                 {i + 1}

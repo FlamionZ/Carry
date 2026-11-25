@@ -42,7 +42,7 @@ export function OfflineBadge() {
       )}
       <span
         className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${
-          ready ? "bg-teal text-ink" : "bg-amber text-ink"
+          ready ? "bg-teal text-on-signal" : "bg-signal text-on-signal"
         }`}
         title={ready ? "App shell cached for offline use" : "Open once online in the built app to cache it"}
       >

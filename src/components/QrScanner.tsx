@@ -95,7 +95,7 @@ export function QrScanner({ onText, disabled }: { onText: (text: string) => void
 
   return (
     <div className="space-y-3">
-      <div className={`overflow-hidden rounded-card bg-ink ${cameraOn ? "" : "hidden"}`}>
+      <div className={`overflow-hidden rounded-card bg-black ${cameraOn ? "" : "hidden"}`}>
         <div className="relative">
           <video ref={videoRef} className="aspect-square w-full object-cover" muted playsInline />
           <div className="pointer-events-none absolute inset-8 rounded-card border-4 border-teal/80" aria-hidden="true" />

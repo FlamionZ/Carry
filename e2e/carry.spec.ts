@@ -176,3 +176,30 @@ test("three phones: join, relay, acknowledgement, integrity checks, offline shel
   expect(w.external, "no request may leave the app origin").toEqual([]);
   expect(w.problems, "no console errors, page errors or CSP violations").toEqual([]);
 });
+
+test("theme: night by default, Light choice persists across reloads", async ({ browser }) => {
+  const w = watch();
+  const A = await phone(browser, "Alex", w);
+  const root = A.page.locator("html");
+  await expect(root).not.toHaveAttribute("data-theme", "light");
+
+  await A.page.goto("/settings");
+  const night = A.page.getByRole("radio", { name: /Kiroween night/ });
+  const light = A.page.getByRole("radio", { name: /^Light/ });
+  await expect(night).toBeChecked();
+  // The radio is visually hidden inside its card; people tap the card label.
+  await A.page.getByText("Light", { exact: true }).click();
+  await expect(light).toBeChecked();
+  await expect(root).toHaveAttribute("data-theme", "light");
+
+  await A.page.reload();
+  await expect(light).toBeChecked();
+  await expect(root).toHaveAttribute("data-theme", "light");
+
+  await A.page.getByText("Kiroween night", { exact: true }).click();
+  await expect(night).toBeChecked();
+  await expect(root).not.toHaveAttribute("data-theme", "light");
+
+  expect(w.external, "no request may leave the app origin").toEqual([]);
+  expect(w.problems, "no console errors, page errors or CSP violations").toEqual([]);
+});

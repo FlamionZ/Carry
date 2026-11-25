@@ -26,7 +26,7 @@ export function Wordmark({ onDark = false }: { onDark?: boolean }) {
     <span className="flex items-center gap-2">
       <CarryMark size={28} onDark={onDark} />
       <span
-        className={`font-display text-lg font-bold tracking-[0.18em] ${onDark ? "text-white" : "text-forest"}`}
+        className={`font-display text-lg font-bold tracking-[0.18em] ${onDark ? "text-on-brand" : "text-accent"}`}
         aria-hidden="true"
       >
         CARRY

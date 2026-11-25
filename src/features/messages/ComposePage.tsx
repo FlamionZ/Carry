@@ -54,7 +54,7 @@ export function ComposePage() {
                     aria-labelledby={`kind-label-${k}`}
                     aria-describedby={`kind-hint-${k}`}
                   />
-                  <span className="flex min-h-14 items-center gap-3 rounded-control border-2 border-sage bg-white px-3 py-2 text-ink peer-checked:border-forest peer-checked:bg-forest/5 peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-teal-dark">
+                  <span className="flex min-h-14 items-center gap-3 rounded-control border-2 border-sage bg-surface px-3 py-2 text-fg peer-checked:border-forest peer-checked:bg-forest/5 peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-teal-dark">
                     <Icon size={22} aria-hidden="true" />
                     <span className="flex flex-col">
                       <span id={`kind-label-${k}`} className="font-semibold">

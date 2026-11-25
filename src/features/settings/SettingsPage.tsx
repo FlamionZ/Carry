@@ -1,5 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
+import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
+import { applyTheme, readTheme, type Theme, writeTheme } from "../../app/theme";
 import { normalizeName, updateDisplayName } from "../../application/use-cases/identity";
 import { clearLocalData } from "../../application/use-cases/maintenance";
 import { buildExpiredFixture } from "../../application/use-cases/packets";
@@ -122,6 +124,50 @@ function ReadinessSection() {
         </button>
       </div>
     </section>
+  );
+}
+
+const THEME_OPTIONS: { value: Theme; label: string; hint: string; Icon: typeof Moon }[] = [
+  { value: "night", label: "Kiroween night", hint: "Dark, easy on the eyes at evening events (default)", Icon: Moon },
+  { value: "light", label: "Light", hint: "The original light look", Icon: Sun },
+];
+
+function ThemeSection() {
+  const [theme, setTheme] = useState<Theme>(() => readTheme(localStorage));
+  const choose = (next: Theme) => {
+    setTheme(next);
+    writeTheme(localStorage, next);
+    applyTheme(next);
+  };
+  return (
+    <fieldset className="card space-y-3">
+      <legend className="sr-only">Theme</legend>
+      <h2 className="text-lg" aria-hidden="true">
+        Theme
+      </h2>
+      <p className="text-sm muted">QR codes always stay dark on white, whichever theme you choose.</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {THEME_OPTIONS.map(({ value, label, hint, Icon }) => (
+          <label key={value} className="block cursor-pointer">
+            <input
+              type="radio"
+              name="theme"
+              value={value}
+              checked={theme === value}
+              onChange={() => choose(value)}
+              className="peer sr-only"
+            />
+            <span className="flex min-h-14 items-center gap-3 rounded-control border-2 border-line bg-surface px-3 py-2 text-fg peer-checked:border-accent peer-checked:bg-accent/10 peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[rgb(var(--carry-focus))]">
+              <Icon size={20} aria-hidden="true" className="shrink-0 text-accent" />
+              <span>
+                <span className="block font-semibold">{label}</span>
+                <span className="block text-xs muted">{hint}</span>
+              </span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
@@ -338,6 +384,7 @@ export function SettingsPage() {
     <div className="space-y-4">
       <PageHeader title="Settings" />
       <IdentitySection />
+      <ThemeSection />
       <ReadinessSection />
       <QrSection />
       <DiagnosticsSection />

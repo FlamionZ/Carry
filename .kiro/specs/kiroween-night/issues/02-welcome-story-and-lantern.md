@@ -4,8 +4,8 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The identity-setup hero keeps the tagline and adds the FidoNet resurrection sentence from design.md.
-- [ ] An inline SVG lantern (no network) appears in the hero and in empty states. Its glow animation runs only when the user has not asked for reduced motion. The CARRY mark is unchanged.
-- [ ] Contrast and focus pass in both themes. Existing browser tests still pass.
+- [x] The identity-setup hero keeps the tagline and adds the FidoNet resurrection sentence from design.md.
+- [x] An inline SVG lantern (no network) appears in the hero and in empty states. Its glow animation runs only when the user has not asked for reduced motion. The CARRY mark is unchanged.
+- [x] Contrast and focus pass in both themes (computed contrast check, see ticket 01). Existing browser tests still pass.

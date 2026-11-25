@@ -19,7 +19,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-10 bg-forest text-white">
+      <header className="sticky top-0 z-10 bg-brand text-on-brand">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-2 px-4 py-3">
           <Link to="/" aria-label="CARRY home" className="rounded-control">
             <Wordmark onDark />
@@ -29,7 +29,7 @@ export function AppShell() {
       </header>
 
       {!window.isSecureContext && (
-        <div className="bg-alert px-4 py-2 text-center text-sm text-white" role="alert">
+        <div className="bg-danger px-4 py-2 text-center text-sm text-on-danger" role="alert">
           This page is not on a secure connection. Open CARRY from HTTPS or localhost to use encryption, the camera
           and offline mode.
         </div>
@@ -41,7 +41,7 @@ export function AppShell() {
           className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 px-4 pb-2"
           role="status"
         >
-          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-control bg-amber px-4 py-2 text-sm text-ink shadow-md">
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-control bg-signal px-4 py-2 text-sm text-on-signal shadow-md">
             <span>A new version of CARRY is cached.</span>
             <button
               type="button"
@@ -62,7 +62,7 @@ export function AppShell() {
       </main>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-10 border-t border-black/10 bg-white pb-[env(safe-area-inset-bottom)]"
+        className="fixed inset-x-0 bottom-0 z-10 border-t border-line/30 bg-surface pb-[env(safe-area-inset-bottom)]"
         aria-label="Main"
       >
         <ul className="mx-auto grid max-w-2xl grid-cols-3">
@@ -73,7 +73,7 @@ export function AppShell() {
                 end={end}
                 className={({ isActive }) =>
                   `flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-semibold ${
-                    isActive ? "text-teal-dark" : "text-sage-dark"
+                    isActive ? "text-accent" : "text-muted"
                   }`
                 }
               >

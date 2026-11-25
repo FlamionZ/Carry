@@ -1,11 +1,12 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { ChevronRight, Plus, ScanLine, Shield, Users } from "lucide-react";
+import { ChevronRight, Plus, ScanLine, Shield } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { createIdentity } from "../../application/use-cases/identity";
 import { useDevice } from "../../app/providers/DeviceProvider";
 import { formatRemaining, useAction } from "../../app/useAction";
 import { IosStorageNotice } from "../../components/IosStorageNotice";
+import { Lantern } from "../../components/Lantern";
 import { CarryMark } from "../../components/Logo";
 import { ErrorNotice } from "../../components/Notice";
 import { LIMITS } from "../../domain/limits";
@@ -17,12 +18,19 @@ function IdentitySetup() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-card bg-forest p-6 text-white">
-        <CarryMark size={56} onDark />
+      <section className="rounded-card bg-brand p-6 text-on-brand">
+        <div className="flex items-end gap-3">
+          <CarryMark size={56} onDark />
+          <Lantern size={44} />
+        </div>
         <h1 className="mt-4 text-3xl">Carry the message. Keep the community connected.</h1>
-        <p className="mt-3 text-white/85">
+        <p className="mt-3 text-on-brand/85">
           CARRY helps your community share short, private updates without relying on an internet connection. Create
           a group, invite members with QR, and pass encrypted message packets from one device to another.
+        </p>
+        <p className="mt-3 border-l-2 border-signal pl-3 text-sm text-on-brand/85">
+          In the 1980s, FidoNet carried messages from one computer to the next, night after night. CARRY brings that
+          store-and-forward idea back, hand to hand by QR, with modern encryption and no server.
         </p>
       </section>
       <IosStorageNotice />
@@ -120,7 +128,7 @@ export function HomePage() {
       <section className="space-y-2">
         {communities?.length === 0 && (
           <div className="card text-center">
-            <Users className="mx-auto text-sage" size={36} aria-hidden="true" />
+            <Lantern size={40} className="mx-auto" />
             <p className="mt-2 font-semibold">No communities on this device yet</p>
             <p className="mt-1 text-sm muted">Create one, or scan an invitation from an organizer you trust.</p>
           </div>

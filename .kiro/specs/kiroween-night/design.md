@@ -26,7 +26,8 @@ Tailwind colours become **role tokens** backed by CSS variables written as RGB c
 | signal / on-signal | `amber` backgrounds / text on them | `#F1B45B` / `#14201E` | `#F1B45B` / `#14201E` |
 | signal-fg | `amber-dark` text | `#8A5A12` | `#F5C77E` |
 | ack | `teal`/`teal-dark` for Acknowledged and offline-ready | `#1A7060` | `#5FD1B8` |
-| danger / danger-fg | `alert` | `#C94C4C` / `#A33A3A` | `#E06767` / `#F08A8A` |
+| danger / danger-fg | `alert` | `#C94C4C` / `#A33A3A` | `#E87A7A` / `#F08A8A` |
+| on-danger | text on a danger fill | `#FFFFFF` | `#14201E` |
 | focus | focus ring | `#1A7060` | `#F1B45B` |
 
 Rules:

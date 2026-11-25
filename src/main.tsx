@@ -13,8 +13,11 @@ import { BrowserRouter } from "react-router";
 import { DeviceProvider } from "./app/providers/DeviceProvider";
 import { AppRoutes } from "./app/routes/AppRoutes";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { applyTheme, readTheme } from "./app/theme";
 import { registerServiceWorker } from "./infrastructure/pwa/register";
 
+// Night is the stylesheet default; a stored Light choice applies before the first render.
+applyTheme(readTheme(localStorage));
 registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(

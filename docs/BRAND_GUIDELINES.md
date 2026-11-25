@@ -221,7 +221,9 @@ For Kiroween 2026, CARRY's default look is **Kiroween night**: a lantern carried
 | Primary | `#3DBFA6` with dark text | Main action |
 | Signal (pumpkin) | `#F1B45B` with dark text | Attention, relay prompt, focus ring |
 | Acknowledged | `#5FD1B8` | Reserved for Acknowledged |
-| Danger | `#F08A8A` | Errors and security warnings |
+| Danger | `#E87A7A` fill with dark text `#14201E`; `#F08A8A` as text | Errors, security warnings, destructive buttons |
+
+In the Light theme, danger stays `#C94C4C` with white text (`on-danger`) and `#A33A3A` as text. White text on a night danger fill fails AA, which is why the `on-danger` role exists.
 
 **Rules:**
 - Every text and control pair must pass WCAG AA in both themes.
