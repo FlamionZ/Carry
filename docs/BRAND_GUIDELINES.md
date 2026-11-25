@@ -201,3 +201,30 @@ Avoid:
   --carry-font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 ```
+
+## 12. Kiroween edition (night theme)
+
+For Kiroween 2026, CARRY's default look is **Kiroween night**: a lantern carried through the dark. Messages travel hand to hand at night, like the store-and-forward networks (FidoNet, UUCP) CARRY brings back to life. ADR-0002 records the decision. The original light theme stays available in Settings.
+
+**Mood:** calm night, warm light. Not horror. Sections 2, 8 and 9 still apply. No ghosts, skulls, blood, cobwebs or warning-tape, and no fear-based copy. The Halloween feeling comes from the dark palette, the pumpkin-amber light and the lantern motif.
+
+**Night palette** (role tokens; light values are the §5 colours):
+
+| Role | Night | Usage |
+|---|---|---|
+| Canvas | `#0F1513` | Page background |
+| Surface | `#18211E` | Cards |
+| Text | `#EDEBE3` | Body text |
+| Muted | `#A9B5AF` | Secondary text |
+| Accent | `#8FD3C0` | Headings, links |
+| Brand | `#0A0F0E` | Header, hero |
+| Primary | `#3DBFA6` with dark text | Main action |
+| Signal (pumpkin) | `#F1B45B` with dark text | Attention, relay prompt, focus ring |
+| Acknowledged | `#5FD1B8` | Reserved for Acknowledged |
+| Danger | `#F08A8A` | Errors and security warnings |
+
+**Rules:**
+- Every text and control pair must pass WCAG AA in both themes.
+- QR codes are always dark on white, whatever the theme.
+- The lantern motif is a small warm glow on the relay path. It is used sparingly: the welcome screen, empty states and the relay journey. It never animates when reduced motion is requested.
+- In-app status words and copy stay plain (section 9). The Halloween story belongs on the welcome screen, in the README and in the video.
