@@ -6,8 +6,18 @@ CARRY is a tool for offline community coordination. When mobile data and Wi-Fi a
 
 Live: **https://carry-beu.pages.dev**. The specification lives in [`docs/`](docs/).
 
+## Kiroween 2026: Resurrection
+
+CARRY is entered in the **Resurrection** category. In the 1980s, FidoNet and UUCP moved mail between computers that were not online all the time: each machine stored messages and passed them on to the next one at night. People also carried data by hand on disks, which was called sneakernet. CARRY brings that store-and-forward idea back for phones. Packets travel hand to hand as QR frames, with modern encryption, signatures, and no server.
+
+The submission edition opens in a dark "Kiroween night" theme with a small lantern motif. Light is still available in Settings. QR codes stay dark on white in both themes ([ADR-0002](docs/adr/0002-kiroween-night-theme.md)). CARRY is not an automatic mesh, does not guarantee delivery, and is not an emergency network. Someone has to carry every packet.
+
+CARRY was started for Kiroween 2026: the first commit is dated 16 November 2026. Submission texts are in [`docs/submission/`](docs/submission/).
+
+## Documents
+
 - [`TESTING.md`](TESTING.md): how to verify CARRY on one laptop with three browser profiles.
-- [`KIRO.md`](KIRO.md): how Kiro was used (steering, the spec and its tickets, the hook, the custom agents) and the bugs found along the way.
+- [`KIRO.md`](KIRO.md): how Kiro was used (steering, two specs and their tickets, the hook, the custom agents, subagents, skills, the context7 power), what was not used, and the bugs found along the way.
 
 ## Features
 
@@ -99,21 +109,22 @@ Scanner fallbacks: upload a QR image, or paste frame text (each QR display has a
 
 Step-by-step manual checks for judges are in [`TESTING.md`](TESTING.md).
 
-- `npm test`: 102 Vitest tests in 6 files.
+- `npm test`: 106 Vitest tests in 7 files.
+  - `src/app/theme.test.ts` (4): the theme preference helper (night default, unknown values, storage failures).
   - `src/domain/domain.test.ts` (24): encoding, frames, schemas and relay rules.
   - `src/application/protocol.test.ts` (30): a three-device protocol run on IndexedDB (fake-indexeddb) with real Web Crypto keys. It covers join, message kinds, relay with signed relay entries, the relay journey, ACK and the journey back, the Ledger, duplicates, corrupted and conflicting frames, tampered packets, expiry, single-use invitations and approvals meant for another device.
   - Property-based tests with fast-check (8 properties). `src/domain/frames.property.test.ts` (2): any order of frames, and duplicate frames anywhere, reassemble the identical payload. `src/application/protocol.property.test.ts` (6): any single-character change to a frame or a signed packet is rejected without showing the text; expired or hop-limited packets are never imported or relayed; repeated imports yield one message; altered, reordered or middle-removed relay entries, and any single-character change inside a relay entry, are rejected.
   - Golden vectors (PACKET_PROTOCOL.md §14), `src/application/vectors.test.ts` (27): `src/test/vectors/carry-v1.json` holds an invitation, join request, approval, message (as frames and relayed), ACK and member message, plus 19 invalid inputs with their expected error codes. Each receiving device is rebuilt from the file and must accept or reject the frozen bytes exactly. A deliberately changed AAD separator made the four packet vectors fail, so they pin the wire format. Never edit or regenerate this file for protocol v1.
   - Relay entry golden vectors, `src/application/vectors-relay.test.ts` (13): `src/test/vectors/carry-v1-relay.json` holds a message with a kind relayed once and twice, and an ACK with the copied journey relayed once and twice, plus 6 invalid cases (entry count, hop order, broken chain, altered signatures, forged copied journey). It is frozen in the same way.
-- `npm run test:e2e`: 4 Playwright tests against the production build and its response headers, in Chromium (Pixel 7 profile), WebKit (iPhone 14 profile) and Firefox. Each phone is a separate browser context. Any request outside the app origin, console or page error, or CSP violation fails the test.
-  - `e2e/carry.spec.ts` runs DEMO_PLAN.md scenes 1–5 with three phones: a Change relayed A → B → C, the relay journey with an unknown member, the acknowledgement carried back with both journeys verified on A, the Ledger and its timeline, the integrity fixtures, and an offline reload. Frames move through the paste fallback.
+- `npm run test:e2e`: 5 Playwright tests against the production build and its response headers, in Chromium (Pixel 7 profile), WebKit (iPhone 14 profile) and Firefox. Each phone is a separate browser context. Any request outside the app origin, console or page error, or CSP violation fails the test.
+  - `e2e/carry.spec.ts` runs DEMO_PLAN.md scenes 1–5 with three phones: a Change relayed A → B → C, the relay journey with an unknown member, the acknowledgement carried back with both journeys verified on A, the Ledger and its timeline, the integrity fixtures, and an offline reload. Frames move through the paste fallback. A second test checks that the night theme is the default and that a Light choice survives a reload.
   - `e2e/camera.spec.ts`:
     - A join and a four-frame message go through the real camera code path (getUserMedia → video → ZXing). A fake 1280×720 camera shows the displayed QR images tilted, blurred and drifting.
     - Screenshot upload of the displayed QR.
     - Denied camera permission.
   - Playwright's WebKit build for Windows has no `canvas.captureStream`, so the fake-camera test is skipped there.
 - CI (`.github/workflows/ci.yml`) runs the runtime dependency audit, build, unit tests and browser tests on every push and pull request.
-- A one-off axe-core audit of 22 screens and states (WCAG 2.2 A/AA rules) found no violations after the contrast fixes. It is not part of the suite.
+- A one-off axe-core audit of 22 screens and states (WCAG 2.2 A/AA rules) found no violations in the original light design after the contrast fixes. The night theme was not audited with axe, because the tool could not be installed. Instead, a one-off script computed WCAG contrast for 24 text and control pairs in both themes and found no failures. Neither check is part of the suite.
 
 Not covered by the automated tests: physical phone cameras, real screens (focus, glare, moiré), Safari on a real iPhone, and the live HTTPS deployment (check it by hand after each deploy, as described above).
 
@@ -142,7 +153,7 @@ src/**/*.test.ts     Vitest suites; src/test/vectors/ holds the golden vectors
 scripts/             Icon generator and the two golden-vector generators
 e2e/                 Playwright specs, helpers and the fake camera
 .kiro/steering/      Project rules for Kiro: product copy, stack and layers, protocol/security
-.kiro/specs/         The community coordination spec, its tickets and task index
+.kiro/specs/         The community coordination and Kiroween night specs, tickets and task indexes
 .kiro/hooks/         Save hook that runs npm run check (see KIRO.md)
 .kiro/agents/        Protocol Engineer and Security Reviewer custom agents (see KIRO.md)
 GLOSSARY.md          Domain vocabulary
@@ -168,7 +179,7 @@ docs/adr/            Architecture decisions
   - `pendingJoinRequests.communityName`, `adminSigningPublicJwk`, `adminFingerprint` and `requestPayload`. The request payload is deleted on acceptance or expiry.
   - `packets.senderId` and `originalPacketId`.
   - `acknowledgements.acknowledgedByName`.
-- Text colours `teal.dark`, `amber.dark`, `sage.dark` and `alert.dark` are darker shades of the brand tokens, chosen for WCAG AA contrast. The focus ring uses `#1A7060` on light backgrounds and paper on dark ones.
+- Colours are role tokens (canvas, surface, text, accent, primary, signal, danger, acknowledged) stored as CSS variables in `src/app/styles/index.css`, with night values on `:root` and Light values under `[data-theme="light"]`. The older Tailwind names (`paper`, `ink`, `forest`, `sage`, `amber`, `alert`) are aliases for those roles. The focus ring is pumpkin `#F1B45B` in night and `#1A7060` in Light. The theme choice is stored in `localStorage` as `carry.theme`.
 
 ## Limitations
 

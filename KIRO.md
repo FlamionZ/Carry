@@ -10,7 +10,9 @@ This document describes what Kiro contributed to CARRY, which files show it, and
 - `0682be9` Production readiness: headers, resilience, golden vectors, a11y, CI
 - `4491477`, `0915053` Cloudflare Pages deploy and the live URL
 
-**The community coordination spec (20 November 2026, spec-driven).** Spec-driven work started with `.kiro/specs/community-coordination/`. Everything from commit `d3518d3` onward was planned in that spec and its tickets.
+**The community coordination spec (20 November 2026, spec-driven).** Spec-driven work started with `.kiro/specs/community-coordination/`. Everything from commit `d3518d3` up to the deploy record `c669f8c` was planned in that spec and its tickets.
+
+**The Kiroween night spec (25 November 2026, spec-driven).** `.kiro/specs/kiroween-night/` turned CARRY into its Kiroween 2026 submission edition: a night theme, a welcome story, and the submission texts. It starts at commit `e23a9df`. See [The second spec](#the-second-spec-kiroween-night) below.
 
 ## Steering
 
@@ -67,6 +69,15 @@ A coordinating Kiro session ran the tickets with parallel implementer agents. Ea
 
 Each agent finished by running `npm run check`, setting the ticket's `Status:` to `done`, ticking `tasks.md`, committing as `NN: <title>`, and merging the integration tip into its own branch so the coordinator could merge it cleanly. Protocol changes followed the order set in the steering and the spec: ticket 02 updated `docs/PACKET_PROTOCOL.md` (§5 message kind, §10 acknowledgement journey, §11A relay entries) before tickets 04, 06 and 07 changed code.
 
+### Code review before merging
+
+After ticket 10, the `code-review` skill reviewed the whole spec branch against `main` in two parallel review subagents, one per axis:
+
+- **Standards:** does the code follow the steering files, `GLOSSARY.md` and the ADRs?
+- **Spec:** does the code do what `requirements.md` and the tickets asked?
+
+The two reviews reported 22 findings: 12 on standards and 10 on the spec. Two of them needed a product decision, and the owner made both: a Request's acknowledgement count reads "N members confirmed", and "Rejected" is not a stored status, because a rejected packet is never stored. One implementer agent fixed the findings in `196dfe4` and `c4ee65e`, merged as `9c626a4`, which is the build deployed at the end of the spec. Two examples of what the review caught: relay copy that still described the pre-ticket-06 relay without signed entries, and a Ledger that decrypted each packet more than once per render.
+
 ## The hook
 
 `.kiro/hooks/protocol-check-on-save.json` (commit `4dc2446`) runs `npm run check` (TypeScript build check, then the Vitest suite including the protocol and golden-vector tests) whenever a file in `src/domain/` or `src/application/` is saved. The matcher is the regular expression `src[\\/](domain|application)[\\/].*\.ts$` and the timeout is 180 seconds. A change that breaks the wire format therefore fails as soon as the file is saved.
@@ -109,8 +120,52 @@ Bugs (a) to (c) were found and fixed before the spec existed. Bugs (d) and (e) w
 
 **(e) Shared test phones were left with clocks a day ahead.** The property suites share three simulated phones created once per file. The expiry property suite moves two phones' clocks up to a day forward and did not put them back. This was harmless until tickets 04 and 06 were merged together: ticket 06's relay entry property suite, in the same file, then ran on those phones after the expiry suite, with the wrong clocks, and the merged suite failed. Fixed in `ff9c4c5` ("Restore phone clocks after the expiry property suite"): the suite records every phone's clock in `beforeAll` and restores it in `afterAll`. Later implementers were told to restore clocks or use fresh phones in new suites.
 
+## The second spec: kiroween-night
+
+The goal was a submission edition of CARRY for Kiroween 2026, category Resurrection, with no new messaging features and no protocol changes.
+
+**Planning.** A grilling round with the owner settled six questions before anything was written:
+
+1. Which category? Resurrection, framed as store-and-forward messaging (FidoNet, UUCP, sneakernet) carried by hand.
+2. Which theme? A dark "Kiroween night" theme as the default, with Light kept in Settings.
+3. Where does the Halloween story go? On the welcome screen, in the README and in the video. In-app copy stays plain.
+4. Which Kiro features? Only those that help, reported honestly.
+5. Which submission materials? Devpost text, a blog post draft and a social post draft.
+6. In what order? Theme and welcome screen first, then this write-up, then the submission materials. No new features.
+
+The decisions became [ADR-0002](docs/adr/0002-kiroween-night-theme.md), which rejects a light-only edition and a horror "costume" UI. They also became `docs/BRAND_GUIDELINES.md` §12, a spec (`requirements.md` with 10 user stories, `design.md`) and three tickets, all in commit `e23a9df`.
+
+| Ticket | Blocked by | Commit |
+|---|---|---|
+| 01 Kiroween night theme with a Light choice | none | `46a057c` |
+| 02 Welcome story and lantern motif | 01 | `46a057c` |
+| 03 Submission materials and Kiro write-up | none | the commit that adds `docs/submission/` |
+
+**The context7 power.** The theme needed Tailwind 3 colours that switch at runtime without inline scripts or inline styles, because the production CSP forbids both. Kiro used the installed context7 power to look up the current Tailwind v3 documentation. It confirmed the pattern the theme now uses: each colour is a CSS variable holding RGB channels, read as `rgb(var(--carry-canvas) / <alpha-value>)`, so opacity modifiers such as `bg-canvas/80` keep working. Night values sit on `:root`, and `[data-theme="light"]` overrides them. Because night is the stylesheet default, no script has to run before first paint.
+
+**What the checks found.** A one-off script computed WCAG contrast for 24 text and control pairs in both themes. In the first draft, white text on the night danger colour `#E06767` failed AA. The fix was a lighter danger `#E87A7A` plus a new `on-danger` role: dark text in night, white in light. After that, the script reported 0 failures. The browser tests assert text, not colours, so they passed unchanged in the new theme. A new browser test checks that night is the default and that a Light choice survives a reload.
+
+**How it was executed, and what went wrong.** The plan was to run tickets 01 and 03 in parallel worktree subagents, as in the first spec. Twice, a subagent reported a finished commit whose hash never existed in the repository, and its work was lost with the removed worktree. After the second time, the coordinating session stopped delegating and implemented tickets 01 and 02 directly on `feat/kiroween-night`. It then wrote ticket 03 the same way. The lesson for the next spec: check that a subagent's reported commit exists (`git cat-file -e <hash>`) before removing its worktree.
+
+## Kiro features used, and not used
+
+| Feature | Used | Where |
+|---|---|---|
+| Specs (requirements, design, tasks) | Yes | `.kiro/specs/community-coordination/`, `.kiro/specs/kiroween-night/` |
+| Steering | Yes | `.kiro/steering/` (three files, above) |
+| Agent hooks | Yes | `.kiro/hooks/protocol-check-on-save.json` |
+| Custom agents | Yes | `.kiro/agents/` (Protocol Engineer, Security Reviewer) |
+| Subagents | Yes | Parallel ticket implementers and the two-axis code review |
+| Skills | Yes | Matt Pocock's skills: `setup-matt-pocock-skills`, `grill-with-docs`, `to-spec`, `to-tickets`, `implement-spec`, `tdd`, `code-review` |
+| Powers | Yes | context7, for the Tailwind v3 theming documentation |
+| Vibe sessions | Yes | The pre-spec phase (16–18 November) |
+| Kiro CLI | No | It is not installed on the development machine (only the IDE launcher is). A planned CLI review run was dropped rather than faked. |
+| A custom MCP server | No | CARRY has no server and no external service to connect to. Writing one only to tick a box would add nothing judges could use. |
+| Kiro Crew | No | The coordinating session plus subagents already covered parallel work. |
+
 ## What Kiro did not do
 
 - The pre-spec version was not planned in a spec, and its tests were written alongside the code rather than from acceptance criteria.
+- No axe accessibility audit ran on the night theme. `@axe-core/playwright` could not be installed during the second spec because npm hung twice. The earlier axe audit (22 screens, no violations) covered only the original light design. The night theme relies on the computed contrast check described above.
 - The camera path has only been tested with a fake camera in the browser tests, not with phone cameras. `TESTING.md` explains what a judge can and cannot check on one laptop.
 - The protocol has not been independently audited.

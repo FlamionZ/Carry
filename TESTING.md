@@ -145,6 +145,12 @@ Optional: for a Request, the count reads "confirmed" instead, for example "1 mem
 
 Set the throttling back to **No throttling** when you are done.
 
+## 11. Theme (any phone)
+
+1. Look at any screen. **Expected:** the dark "Kiroween night" theme. QR codes are dark on white.
+2. Open **Settings**. Under **Theme**, tap **Light**. **Expected:** the app switches to the light theme at once.
+3. Reload the page. **Expected:** Light is still selected. Tap **Kiroween night** to switch back.
+
 ## What this does not test
 
 - **The camera.** Scanning with **Open camera** needs a phone or webcam pointed at another screen. To test it, open the live site on two or three phones, wait for the "Offline-ready" badge on each, and follow the same steps using **Open camera** instead of the fallbacks.
@@ -162,4 +168,4 @@ npm run build                                   # the browser tests run against 
 npm run test:e2e                                # Playwright in Chromium, WebKit and Firefox
 ```
 
-`npm test` runs 102 tests in 6 files. `npm run test:e2e` runs 4 browser tests on each of the three engines. `e2e/carry.spec.ts` follows the same steps as this document with three isolated browser contexts and the paste fallback. `e2e/camera.spec.ts` covers the camera code path with a fake camera, screenshot upload, and denied camera permission. Playwright's WebKit build for Windows cannot run the fake camera, so that one test is skipped there.
+`npm test` runs 106 tests in 7 files. `npm run test:e2e` runs 5 browser tests on each of the three engines. `e2e/carry.spec.ts` follows the same steps as this document with three isolated browser contexts and the paste fallback, and also checks the theme choice. `e2e/camera.spec.ts` covers the camera code path with a fake camera, screenshot upload, and denied camera permission. Playwright's WebKit build for Windows cannot run the fake camera, so that one test is skipped there.
